@@ -109,12 +109,12 @@ describe('screener()', () => {
   const bodyOf = (calls: ReturnType<typeof makeMockFetch>['calls']) =>
     JSON.parse(calls[0].init?.body as string);
 
-  it('POSTs to /v1/screener/live with empty body for no options', async () => {
+  it('POSTs to /v1/screener with empty body for no options', async () => {
     const payload = { meta: { total_count: 10, tier: 'growth' }, data: [] };
     const { fetchFn, calls } = makeMockFetch(200, payload);
     const result = await makeClient(fetchFn).screener();
     expect(result).toEqual(payload);
-    expect(getCalledUrl(calls).pathname).toBe('/v1/screener/live');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/screener');
     expect(calls[0].init?.method).toBe('POST');
     expect(calls[0].init?.body).toBe('{}');
   });

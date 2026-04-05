@@ -488,7 +488,7 @@ export class FlashAlpha {
    * });
    */
   async screener(options: ScreenerOptions = {}): Promise<unknown> {
-    return this._post('/v1/screener/live', options);
+    return this._post('/v1/screener', options);
   }
 
   /** Account info and quota. */
