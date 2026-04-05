@@ -2,7 +2,7 @@
 
 Official JavaScript/TypeScript SDK for the [FlashAlpha](https://flashalpha.com) options analytics API.
 
-Get gamma exposure (GEX), delta exposure (DEX), vanna exposure (VEX), charm exposure (CHEX), implied volatility, volatility surface, 0DTE analytics, BSM greeks, Kelly criterion position sizing, and more — all from a single npm package.
+Get a **live options screener** (filter/rank symbols by GEX, VRP, IV, greeks, harvest scores, and custom formulas), gamma exposure (GEX), delta exposure (DEX), vanna exposure (VEX), charm exposure (CHEX), implied volatility, volatility surface, 0DTE analytics, BSM greeks, Kelly criterion position sizing, and more — all from a single npm package.
 
 Requires Node.js 18+ (uses the built-in `fetch` API — zero dependencies).
 
@@ -37,6 +37,20 @@ console.log(iv);
 // Live stock quote
 const quote = await fa.stockQuote('SPY');
 console.log(quote);
+
+// Live options screener — harvestable VRP setups
+const result = await fa.screener({
+  filters: {
+    op: 'and',
+    conditions: [
+      { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+      { field: 'vrp_regime', operator: 'eq', value: 'harvestable' },
+      { field: 'harvest_score', operator: 'gte', value: 65 },
+    ],
+  },
+  sort: [{ field: 'harvest_score', direction: 'desc' }],
+  select: ['symbol', 'price', 'harvest_score', 'dealer_flow_risk'],
+});
 ```
 
 Get your API key at [flashalpha.com](https://flashalpha.com).
@@ -95,6 +109,12 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `tickers()` | All available stock tickers |
 | `options(ticker)` | Option chain metadata (expirations and strikes) |
 | `symbols()` | Currently queried symbols with live data |
+
+### Screener
+
+| Method | Description |
+|--------|-------------|
+| `screener(options)` | **Live options screener** — filter/rank by GEX, VRP, IV, greeks, harvest scores, custom formulas (Growth+) |
 
 ### Account and System
 
@@ -237,11 +257,25 @@ import type {
 } from 'flashalpha';
 ```
 
-## Related
+## Other SDKs
 
-- [FlashAlpha Python SDK](https://github.com/FlashAlpha-lab/flashalpha-python) — Python equivalent of this SDK
-- [FlashAlpha API Documentation](https://flashalpha.com/docs) — Full API reference
-- [FlashAlpha](https://flashalpha.com) — Options analytics platform
+| Language | Package | Repository |
+|----------|---------|------------|
+| Python | `pip install flashalpha` | [flashalpha-python](https://github.com/FlashAlpha-lab/flashalpha-python) |
+| .NET | `dotnet add package FlashAlpha` | [flashalpha-dotnet](https://github.com/FlashAlpha-lab/flashalpha-dotnet) |
+| Java | Maven Central | [flashalpha-java](https://github.com/FlashAlpha-lab/flashalpha-java) |
+| Go | `go get github.com/FlashAlpha-lab/flashalpha-go` | [flashalpha-go](https://github.com/FlashAlpha-lab/flashalpha-go) |
+| MCP | Claude / LLM tool server | [flashalpha-mcp](https://github.com/FlashAlpha-lab/flashalpha-mcp) |
+
+## Links
+
+- [FlashAlpha](https://flashalpha.com) — API keys, docs, pricing
+- [API Documentation](https://flashalpha.com/docs)
+- [Examples](https://github.com/FlashAlpha-lab/flashalpha-examples) — runnable tutorials
+- [GEX Explained](https://github.com/FlashAlpha-lab/gex-explained) — gamma exposure theory and code
+- [0DTE Options Analytics](https://github.com/FlashAlpha-lab/0dte-options-analytics) — 0DTE pin risk, expected move, dealer hedging
+- [Volatility Surface Python](https://github.com/FlashAlpha-lab/volatility-surface-python) — SVI calibration, variance swap, skew analysis
+- [Awesome Options Analytics](https://github.com/FlashAlpha-lab/awesome-options-analytics) — curated resource list
 
 ## License
 

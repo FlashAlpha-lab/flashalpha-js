@@ -104,6 +104,57 @@ describe('health()', () => {
   });
 });
 
+describe('screener()', () => {
+  it('POSTs to /v1/screener/live with empty body for no options', async () => {
+    const payload = { meta: { total_count: 10, tier: 'growth' }, data: [] };
+    const { fetchFn, calls } = makeMockFetch(200, payload);
+    const result = await makeClient(fetchFn).screener();
+    expect(result).toEqual(payload);
+    expect(getCalledUrl(calls).pathname).toBe('/v1/screener/live');
+    expect(calls[0].init?.method).toBe('POST');
+    expect(calls[0].init?.body).toBe('{}');
+  });
+
+  it('sends filters, sort, select, and limit', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { meta: {}, data: [] });
+    await makeClient(fetchFn).screener({
+      filters: {
+        op: 'and',
+        conditions: [
+          { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+          { field: 'harvest_score', operator: 'gte', value: 65 },
+        ],
+      },
+      sort: [{ field: 'harvest_score', direction: 'desc' }],
+      select: ['symbol', 'price', 'harvest_score'],
+      limit: 20,
+    });
+    const body = JSON.parse(calls[0].init?.body as string);
+    expect(body.filters.op).toBe('and');
+    expect(body.filters.conditions).toHaveLength(2);
+    expect(body.sort[0].field).toBe('harvest_score');
+    expect(body.limit).toBe(20);
+  });
+
+  it('sends formulas for Alpha tier', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { meta: {}, data: [] });
+    await makeClient(fetchFn).screener({
+      formulas: [{ alias: 'vrp_ratio', expression: 'atm_iv / rv_20d' }],
+      filters: { formula: 'vrp_ratio', operator: 'gte', value: 1.2 },
+    });
+    const body = JSON.parse(calls[0].init?.body as string);
+    expect(body.formulas[0].alias).toBe('vrp_ratio');
+    expect(body.filters.formula).toBe('vrp_ratio');
+  });
+
+  it('sends Content-Type: application/json header', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).screener({ limit: 5 });
+    const headers = calls[0].init?.headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+});
+
 describe('account()', () => {
   it('returns account info', async () => {
     const payload = { plan: 'growth', requests_today: 42 };

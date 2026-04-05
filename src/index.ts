@@ -23,6 +23,13 @@ export type {
   IvOptions,
   KellyOptions,
   OptionQuoteOptions,
+  ScreenerFilter,
+  ScreenerFormula,
+  ScreenerGroupCondition,
+  ScreenerLeafCondition,
+  ScreenerOperator,
+  ScreenerOptions,
+  ScreenerSortSpec,
   ZeroDteOptions,
 } from './client';
 export {

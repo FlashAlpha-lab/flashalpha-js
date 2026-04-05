@@ -104,6 +104,54 @@ export interface KellyOptions {
   q?: number;
 }
 
+// ── Screener types ─────────────────────────────────────────────────────────
+
+export type ScreenerOperator =
+  | 'eq'
+  | 'neq'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'between'
+  | 'in'
+  | 'is_null'
+  | 'is_not_null';
+
+export interface ScreenerLeafCondition {
+  field?: string;
+  formula?: string;
+  operator: ScreenerOperator;
+  value?: number | string | boolean | Array<number | string>;
+}
+
+export interface ScreenerGroupCondition {
+  op: 'and' | 'or';
+  conditions: Array<ScreenerLeafCondition | ScreenerGroupCondition>;
+}
+
+export type ScreenerFilter = ScreenerLeafCondition | ScreenerGroupCondition;
+
+export interface ScreenerSortSpec {
+  field?: string;
+  formula?: string;
+  direction: 'asc' | 'desc';
+}
+
+export interface ScreenerFormula {
+  alias: string;
+  expression: string;
+}
+
+export interface ScreenerOptions {
+  filters?: ScreenerFilter;
+  sort?: ScreenerSortSpec[];
+  select?: string[];
+  formulas?: ScreenerFormula[];
+  limit?: number;
+  offset?: number;
+}
+
 // ── client ─────────────────────────────────────────────────────────────────
 
 export class FlashAlpha {
@@ -155,6 +203,30 @@ export class FlashAlpha {
           'X-Api-Key': this.apiKey,
           'Accept': 'application/json',
         },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    return this._handle(response);
+  }
+
+  private async _post(path: string, body?: unknown): Promise<unknown> {
+    const url = this.buildUrl(path);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': this.apiKey,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
     } finally {
@@ -392,6 +464,32 @@ export class FlashAlpha {
   }
 
   // ── Account & System ──────────────────────────────────────────────────────
+
+  /**
+   * Live options screener — filter and rank symbols by gamma exposure, VRP,
+   * volatility, greeks, and more. Powered by an in-memory store updated every
+   * 5-10s from live market data.
+   *
+   * Growth: 10-symbol universe, up to 10 rows. Alpha: ~250 symbols, up to 50
+   * rows, formulas, and harvest/dealer-flow-risk scores.
+   *
+   * @example
+   * // Harvestable VRP screen
+   * fa.screener({
+   *   filters: {
+   *     op: 'and',
+   *     conditions: [
+   *       { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+   *       { field: 'harvest_score', operator: 'gte', value: 65 },
+   *     ],
+   *   },
+   *   sort: [{ field: 'harvest_score', direction: 'desc' }],
+   *   select: ['symbol', 'price', 'harvest_score', 'dealer_flow_risk'],
+   * });
+   */
+  async screener(options: ScreenerOptions = {}): Promise<unknown> {
+    return this._post('/v1/screener/live', options);
+  }
 
   /** Account info and quota. */
   async account(): Promise<unknown> {

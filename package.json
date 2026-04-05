@@ -1,7 +1,7 @@
 {
   "name": "flashalpha",
-  "version": "0.2.1",
-  "description": "Official JavaScript/TypeScript SDK for the FlashAlpha options analytics API — gamma exposure (GEX), delta exposure (DEX), vanna exposure (VEX), charm exposure (CHEX), implied volatility, volatility surface, 0DTE analytics, BSM greeks, Kelly criterion, and more.",
+  "version": "0.3.0",
+  "description": "Official JavaScript/TypeScript SDK for the FlashAlpha options analytics API — live options screener, gamma exposure (GEX), delta exposure (DEX), vanna exposure (VEX), charm exposure (CHEX), VRP, implied volatility, volatility surface, 0DTE analytics, BSM greeks, Kelly criterion, and more.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -18,6 +18,8 @@
   },
   "keywords": [
     "options",
+    "options-screener",
+    "live-options-screener",
     "options-analytics",
     "gamma-exposure",
     "gex",
@@ -36,6 +38,10 @@
     "derivatives",
     "finance",
     "quant",
+    "vrp",
+    "variance-risk-premium",
+    "harvest-score",
+    "dealer-flow",
     "flashalpha"
   ],
   "license": "MIT",
