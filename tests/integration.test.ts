@@ -173,4 +173,88 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       expect([403, 404]).toContain(e.statusCode);
     }
   });
+
+  // ── Screener (Growth+) ────────────────────────────────────────────────────
+
+  itest('screener() empty request returns meta + data for current tier', async () => {
+    const result = await fa!.screener() as {
+      meta: { tier: string; total_count: number; universe_size: number };
+      data: Array<{ symbol: string }>;
+    };
+    expect(result.meta).toBeDefined();
+    expect(result.data).toBeDefined();
+    expect(Array.isArray(result.data)).toBe(true);
+    expect(['growth', 'alpha']).toContain(result.meta.tier);
+  });
+
+  itest('screener() with simple leaf filter returns filtered rows', async () => {
+    const result = await fa!.screener({
+      filters: {
+        field: 'regime',
+        operator: 'in',
+        value: ['positive_gamma', 'negative_gamma'],
+      },
+      select: ['symbol', 'regime', 'price'],
+      limit: 5,
+    }) as { data: Array<{ regime: string }> };
+    for (const row of result.data) {
+      expect(['positive_gamma', 'negative_gamma']).toContain(row.regime);
+    }
+  });
+
+  itest('screener() AND group applies all conditions', async () => {
+    const result = await fa!.screener({
+      filters: {
+        op: 'and',
+        conditions: [
+          { field: 'atm_iv', operator: 'gte', value: 0 },
+          { field: 'atm_iv', operator: 'lte', value: 500 },
+        ],
+      },
+      sort: [{ field: 'atm_iv', direction: 'desc' }],
+      select: ['symbol', 'atm_iv'],
+      limit: 5,
+    }) as { meta: { returned_count: number }; data: Array<{ atm_iv: number | null }> };
+    expect(result.meta.returned_count).toBeLessThanOrEqual(5);
+    const ivs = result.data.map((r) => r.atm_iv).filter((v): v is number => v != null);
+    if (ivs.length >= 2) {
+      const sorted = [...ivs].sort((a, b) => b - a);
+      expect(ivs).toEqual(sorted);
+    }
+  });
+
+  itest('screener() between operator', async () => {
+    const result = await fa!.screener({
+      filters: { field: 'atm_iv', operator: 'between', value: [0, 500] },
+      limit: 3,
+    });
+    expect(result).toBeDefined();
+  });
+
+  itest('screener() select=["*"] returns full flat object', async () => {
+    const result = await fa!.screener({ select: ['*'], limit: 1 }) as {
+      data: Array<Record<string, unknown>>;
+    };
+    if (result.data.length > 0) {
+      expect(result.data[0]).toHaveProperty('symbol');
+      expect(result.data[0]).toHaveProperty('price');
+    }
+  });
+
+  itest('screener() limit is respected', async () => {
+    const result = await fa!.screener({ limit: 3 }) as {
+      meta: { returned_count: number };
+      data: unknown[];
+    };
+    expect(result.meta.returned_count).toBeLessThanOrEqual(3);
+    expect(result.data.length).toBeLessThanOrEqual(3);
+  });
+
+  itest('screener() invalid field raises validation error', async () => {
+    await expect(
+      fa!.screener({
+        filters: { field: 'not_a_real_field_xyz', operator: 'eq', value: 1 },
+      }),
+    ).rejects.toThrow();
+  });
 });

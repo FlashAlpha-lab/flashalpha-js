@@ -105,6 +105,10 @@ describe('health()', () => {
 });
 
 describe('screener()', () => {
+  const emptyResponse = { meta: {}, data: [] };
+  const bodyOf = (calls: ReturnType<typeof makeMockFetch>['calls']) =>
+    JSON.parse(calls[0].init?.body as string);
+
   it('POSTs to /v1/screener/live with empty body for no options', async () => {
     const payload = { meta: { total_count: 10, tier: 'growth' }, data: [] };
     const { fetchFn, calls } = makeMockFetch(200, payload);
@@ -115,8 +119,29 @@ describe('screener()', () => {
     expect(calls[0].init?.body).toBe('{}');
   });
 
-  it('sends filters, sort, select, and limit', async () => {
-    const { fetchFn, calls } = makeMockFetch(200, { meta: {}, data: [] });
+  it('sends X-Api-Key and Content-Type: application/json headers', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).screener({ limit: 5 });
+    const headers = calls[0].init?.headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+    expect(headers['X-Api-Key']).toBe(API_KEY);
+    expect(headers['Accept']).toBe('application/json');
+  });
+
+  it('serializes leaf filter condition', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+    });
+    expect(bodyOf(calls).filters).toEqual({
+      field: 'regime',
+      operator: 'eq',
+      value: 'positive_gamma',
+    });
+  });
+
+  it('serializes AND group with multiple conditions', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
     await makeClient(fetchFn).screener({
       filters: {
         op: 'and',
@@ -129,29 +154,227 @@ describe('screener()', () => {
       select: ['symbol', 'price', 'harvest_score'],
       limit: 20,
     });
-    const body = JSON.parse(calls[0].init?.body as string);
+    const body = bodyOf(calls);
     expect(body.filters.op).toBe('and');
     expect(body.filters.conditions).toHaveLength(2);
     expect(body.sort[0].field).toBe('harvest_score');
     expect(body.limit).toBe(20);
+    expect(body.select).toEqual(['symbol', 'price', 'harvest_score']);
   });
 
-  it('sends formulas for Alpha tier', async () => {
-    const { fetchFn, calls } = makeMockFetch(200, { meta: {}, data: [] });
+  it('serializes OR group', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: {
+        op: 'or',
+        conditions: [
+          { field: 'vrp_regime', operator: 'eq', value: 'toxic_short_vol' },
+          { field: 'vrp_regime', operator: 'eq', value: 'event_only' },
+        ],
+      },
+    });
+    expect(bodyOf(calls).filters.op).toBe('or');
+  });
+
+  it('serializes nested AND inside OR', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: {
+        op: 'or',
+        conditions: [
+          {
+            op: 'and',
+            conditions: [
+              { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+              { field: 'harvest_score', operator: 'gte', value: 70 },
+            ],
+          },
+          {
+            op: 'and',
+            conditions: [
+              { field: 'regime', operator: 'eq', value: 'negative_gamma' },
+              { field: 'atm_iv', operator: 'gte', value: 50 },
+            ],
+          },
+        ],
+      },
+    });
+    const body = bodyOf(calls);
+    expect(body.filters.op).toBe('or');
+    expect(body.filters.conditions[0].op).toBe('and');
+    expect(body.filters.conditions[1].op).toBe('and');
+  });
+
+  it('serializes between operator', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { field: 'atm_iv', operator: 'between', value: [15, 25] },
+    });
+    expect(bodyOf(calls).filters.value).toEqual([15, 25]);
+  });
+
+  it('serializes in operator', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { field: 'term_state', operator: 'in', value: ['contango', 'mixed'] },
+    });
+    expect(bodyOf(calls).filters.value).toEqual(['contango', 'mixed']);
+  });
+
+  it('serializes is_not_null operator (no value)', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { field: 'vrp_regime', operator: 'is_not_null' },
+    });
+    const body = bodyOf(calls);
+    expect(body.filters.operator).toBe('is_not_null');
+    expect(body.filters.value).toBeUndefined();
+  });
+
+  it('serializes cascading filters (expiries, strikes, contracts)', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: {
+        op: 'and',
+        conditions: [
+          { field: 'regime', operator: 'eq', value: 'positive_gamma' },
+          { field: 'expiries.days_to_expiry', operator: 'lte', value: 14 },
+          { field: 'strikes.call_oi', operator: 'gte', value: 2000 },
+          { field: 'contracts.type', operator: 'eq', value: 'C' },
+          { field: 'contracts.delta', operator: 'gte', value: 0.3 },
+        ],
+      },
+      select: ['*'],
+    });
+    const body = bodyOf(calls);
+    const fields = body.filters.conditions.map((c: { field: string }) => c.field);
+    expect(fields).toContain('expiries.days_to_expiry');
+    expect(fields).toContain('strikes.call_oi');
+    expect(fields).toContain('contracts.type');
+    expect(body.select).toEqual(['*']);
+  });
+
+  it('serializes formulas with alias filtering', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
     await makeClient(fetchFn).screener({
       formulas: [{ alias: 'vrp_ratio', expression: 'atm_iv / rv_20d' }],
       filters: { formula: 'vrp_ratio', operator: 'gte', value: 1.2 },
+      sort: [{ formula: 'vrp_ratio', direction: 'desc' }],
     });
-    const body = JSON.parse(calls[0].init?.body as string);
+    const body = bodyOf(calls);
     expect(body.formulas[0].alias).toBe('vrp_ratio');
+    expect(body.formulas[0].expression).toBe('atm_iv / rv_20d');
     expect(body.filters.formula).toBe('vrp_ratio');
+    expect(body.sort[0].formula).toBe('vrp_ratio');
   });
 
-  it('sends Content-Type: application/json header', async () => {
-    const { fetchFn, calls } = makeMockFetch(200, {});
-    await makeClient(fetchFn).screener({ limit: 5 });
-    const headers = calls[0].init?.headers as Record<string, string>;
-    expect(headers['Content-Type']).toBe('application/json');
+  it('serializes inline formula filter', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { formula: 'atm_iv - rv_20d', operator: 'gt', value: 6 },
+    });
+    expect(bodyOf(calls).filters.formula).toBe('atm_iv - rv_20d');
+  });
+
+  it('serializes multi-sort', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      sort: [
+        { field: 'dealer_flow_risk', direction: 'asc' },
+        { field: 'harvest_score', direction: 'desc' },
+      ],
+    });
+    const body = bodyOf(calls);
+    expect(body.sort).toHaveLength(2);
+    expect(body.sort[0].direction).toBe('asc');
+    expect(body.sort[1].direction).toBe('desc');
+  });
+
+  it('serializes pagination with offset', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({ limit: 10, offset: 10 });
+    const body = bodyOf(calls);
+    expect(body.limit).toBe(10);
+    expect(body.offset).toBe(10);
+  });
+
+  it('serializes negative number values', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      filters: { field: 'net_gex', operator: 'lt', value: -500000 },
+    });
+    expect(bodyOf(calls).filters.value).toBe(-500000);
+  });
+
+  it('serializes select with star + formula alias', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, emptyResponse);
+    await makeClient(fetchFn).screener({
+      formulas: [{ alias: 'ratio', expression: 'call_wall / (put_wall + 30)' }],
+      select: ['*', 'ratio'],
+    });
+    expect(bodyOf(calls).select).toEqual(['*', 'ratio']);
+  });
+
+  it('parses full response structure', async () => {
+    const payload = {
+      meta: {
+        total_count: 7,
+        returned_count: 7,
+        universe_size: 250,
+        offset: 0,
+        limit: 50,
+        tier: 'alpha',
+        as_of: '2026-04-05T10:30:00Z',
+      },
+      data: [
+        { symbol: 'SPY', price: 656.01, regime: 'positive_gamma', atm_iv: 20.7 },
+      ],
+    };
+    const { fetchFn } = makeMockFetch(200, payload);
+    const result = await makeClient(fetchFn).screener() as typeof payload;
+    expect(result.meta.tier).toBe('alpha');
+    expect(result.meta.universe_size).toBe(250);
+    expect(result.data[0].price).toBe(656.01);
+  });
+
+  it('throws on tier_restricted 400 validation error', async () => {
+    const errBody = {
+      status: 'ERROR',
+      error: 'validation_error',
+      message: "Field 'harvest_score' requires the Alpha plan or higher.",
+    };
+    const { fetchFn } = makeMockFetch(400, errBody);
+    await expect(
+      makeClient(fetchFn).screener({
+        filters: { field: 'harvest_score', operator: 'gte', value: 65 },
+      }),
+    ).rejects.toThrow(/Alpha/);
+  });
+
+  it('throws on formula_error', async () => {
+    const errBody = {
+      status: 'ERROR',
+      error: 'formula_error',
+      message: "Unexpected token '+' at position 5",
+    };
+    const { fetchFn } = makeMockFetch(400, errBody);
+    await expect(
+      makeClient(fetchFn).screener({
+        formulas: [{ alias: 'bad', expression: '+ atm_iv' }],
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('throws TierRestrictedError on 403', async () => {
+    const errBody = {
+      status: 'ERROR',
+      error: 'tier_restricted',
+      message: 'Screener requires Growth plan or higher.',
+      current_plan: 'Free',
+      required_plan: 'Growth',
+    };
+    const { fetchFn } = makeMockFetch(403, errBody);
+    await expect(makeClient(fetchFn).screener()).rejects.toThrow(/Growth/);
   });
 });
 
