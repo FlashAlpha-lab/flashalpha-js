@@ -174,6 +174,35 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     }
   });
 
+  // ── Max Pain (Growth+) ─────────────────────────────────────────────────────
+
+  itest('maxPain("SPY") returns max pain analysis', async () => {
+    const result = await fa!.maxPain('SPY') as Record<string, unknown>;
+    expect(result.max_pain_strike).toBeDefined();
+    expect(result.pain_curve).toBeDefined();
+    expect(result.dealer_alignment).toBeDefined();
+    expect(result.pin_probability).toBeDefined();
+  });
+
+  itest('maxPain("SPY") response has correct field structure', async () => {
+    const result = await fa!.maxPain('SPY') as {
+      distance: { direction: string };
+      signal: string;
+      regime: string;
+    };
+    expect(['above', 'below', 'at']).toContain(result.distance.direction);
+    expect(['bullish', 'bearish', 'neutral']).toContain(result.signal);
+    expect(['positive_gamma', 'negative_gamma']).toContain(result.regime);
+  });
+
+  itest('maxPain("SPY") without expiration includes multi-expiry calendar', async () => {
+    const result = await fa!.maxPain('SPY') as { max_pain_by_expiration: unknown[] | null };
+    if (result.max_pain_by_expiration) {
+      expect(Array.isArray(result.max_pain_by_expiration)).toBe(true);
+      expect(result.max_pain_by_expiration.length).toBeGreaterThan(0);
+    }
+  });
+
   // ── Screener (Growth+) ────────────────────────────────────────────────────
 
   itest('screener() empty request returns meta + data for current tier', async () => {

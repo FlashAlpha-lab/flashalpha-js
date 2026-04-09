@@ -465,6 +465,13 @@ export class FlashAlpha {
 
   // ── Account & System ──────────────────────────────────────────────────────
 
+  /** Max pain analysis with dealer alignment, pain curve, OI breakdown,
+   * expected move, pin probability, multi-expiry calendar. Growth+. */
+  async maxPain(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
+    return this._get(`/v1/maxpain/${symbol}`, options.expiration !== undefined
+      ? { expiration: options.expiration } : undefined);
+  }
+
   /**
    * Live options screener — filter and rank symbols by gamma exposure, VRP,
    * volatility, greeks, and more. Powered by an in-memory store updated every

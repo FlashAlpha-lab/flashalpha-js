@@ -104,6 +104,56 @@ describe('health()', () => {
   });
 });
 
+describe('maxPain()', () => {
+  it('calls GET /v1/maxpain/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { max_pain_strike: 545 });
+    const result = await makeClient(fetchFn).maxPain('SPY');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/maxpain/SPY');
+    expect(calls[0].init?.method).toBe('GET');
+    expect((result as any).max_pain_strike).toBe(545);
+  });
+
+  it('sends expiration query param when provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).maxPain('SPY', { expiration: '2026-04-17' });
+    expect(getCalledUrl(calls).searchParams.get('expiration')).toBe('2026-04-17');
+  });
+
+  it('omits expiration param when not provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).maxPain('AAPL');
+    expect(getCalledUrl(calls).searchParams.has('expiration')).toBe(false);
+  });
+
+  it('parses full response structure', async () => {
+    const payload = {
+      symbol: 'SPY',
+      max_pain_strike: 545,
+      distance: { absolute: 3.32, percent: 0.61, direction: 'above' },
+      signal: 'neutral',
+      pain_curve: [{ strike: 545, total_pain: 3700000 }],
+      dealer_alignment: { alignment: 'converging', gamma_flip: 546 },
+      regime: 'positive_gamma',
+      pin_probability: 68,
+    };
+    const { fetchFn } = makeMockFetch(200, payload);
+    const result = await makeClient(fetchFn).maxPain('SPY') as typeof payload;
+    expect(result.dealer_alignment.alignment).toBe('converging');
+    expect(result.pin_probability).toBe(68);
+    expect(result.distance.direction).toBe('above');
+  });
+
+  it('throws TierRestrictedError on 403', async () => {
+    const { fetchFn } = makeMockFetch(403, {
+      error: 'tier_restricted',
+      message: 'Requires Growth plan.',
+      current_plan: 'Free',
+      required_plan: 'Growth',
+    });
+    await expect(makeClient(fetchFn).maxPain('SPY')).rejects.toThrow(/Growth/);
+  });
+});
+
 describe('screener()', () => {
   const emptyResponse = { meta: {}, data: [] };
   const bodyOf = (calls: ReturnType<typeof makeMockFetch>['calls']) =>
