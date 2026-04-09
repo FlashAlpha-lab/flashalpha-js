@@ -110,6 +110,12 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `options(ticker)` | Option chain metadata (expirations and strikes) |
 | `symbols()` | Currently queried symbols with live data |
 
+### Max Pain
+
+| Method | Description |
+|--------|-------------|
+| `maxPain(symbol, options?)` | Max pain analysis with dealer alignment, pain curve, OI breakdown, pin probability, multi-expiry calendar (Growth+) |
+
 ### Screener
 
 | Method | Description |
