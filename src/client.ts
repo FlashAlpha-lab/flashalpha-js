@@ -463,6 +463,36 @@ export class FlashAlpha {
     return this._get('/v1/symbols');
   }
 
+  // ── VRP (Variance Risk Premium) ───────────────────────────────────────────
+
+  /**
+   * Variance risk premium analytics — the implied-vs-realized vol spread,
+   * conditioned on dealer gamma and vanna regime, with strategy scores for
+   * harvesting. Requires Alpha+.
+   *
+   * Returns a nested payload. Key access paths:
+   *
+   * - `response.symbol`, `response.underlying_price` — top-level
+   * - `response.vrp.z_score`, `.percentile`, `.atm_iv`, `.rv_20d`,
+   *   `.vrp_20d` — core VRP metrics (NOT top-level)
+   * - `response.directional.downside_vrp`, `.upside_vrp` — directional skew
+   *   (NOT `put_vrp` / `call_vrp`)
+   * - `response.gex_conditioned.harvest_score`, `.regime` — gamma-regime
+   *   conditioning (nullable when there isn't enough data)
+   * - `response.regime.net_gex`, `.gamma`, `.vrp_regime` — regime snapshot
+   * - `response.strategy_scores` — short_put_spread, short_strangle,
+   *   iron_condor, calendar_spread (each 0–100, nullable)
+   * - `response.net_harvest_score`, `response.dealer_flow_risk` — top-level
+   *   composite scores
+   *
+   * @example
+   * const r = await fa.vrp('SPY');
+   * console.log(r.vrp.z_score, r.directional.downside_vrp);
+   */
+  async vrp(symbol: string): Promise<unknown> {
+    return this._get(`/v1/vrp/${symbol}`);
+  }
+
   // ── Account & System ──────────────────────────────────────────────────────
 
   /** Max pain analysis with dealer alignment, pain curve, OI breakdown,

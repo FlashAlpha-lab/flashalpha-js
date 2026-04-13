@@ -286,4 +286,235 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       }),
     ).rejects.toThrow();
   });
+
+  // ── Customer regression tests ─────────────────────────────────────────────
+  // These reproduce the seven bugs an Alpha-tier customer hit while building an
+  // automated trading daemon: nested response paths, field naming, URL prefix
+  // confusion, and the missing vrp() method. Every test calls
+  // a public SDK method and hits the live API — no mocks, no private access.
+
+  itest('vrp method exists on the client', async () => {
+    expect(typeof fa!.vrp).toBe('function');
+  });
+
+  itest('vrp("SPY") returns a fully-readable nested payload', async () => {
+    const r = await fa!.vrp('SPY') as {
+      symbol: string;
+      underlying_price: number;
+      as_of: string;
+      market_open: boolean;
+      net_harvest_score: number | null;
+      dealer_flow_risk: number | null;
+      vrp: {
+        atm_iv: number | null;
+        rv_5d: number | null;
+        rv_10d: number | null;
+        rv_20d: number | null;
+        rv_30d: number | null;
+        vrp_5d: number | null;
+        vrp_10d: number | null;
+        vrp_20d: number | null;
+        vrp_30d: number | null;
+        z_score: number | null;
+        percentile: number | null;
+        history_days: number;
+      };
+      directional: {
+        put_wing_iv_25d: number | null;
+        call_wing_iv_25d: number | null;
+        downside_rv_20d: number | null;
+        upside_rv_20d: number | null;
+        downside_vrp: number | null;
+        upside_vrp: number | null;
+      };
+      regime: {
+        gamma: string;
+        vrp_regime: string | null;
+        net_gex: number;
+        gamma_flip: number | null;
+      };
+      term_vrp: Array<{ dte: number; iv: number; rv: number; vrp: number }>;
+      gex_conditioned: { regime: string; harvest_score: number; interpretation: string } | null;
+      strategy_scores: {
+        short_put_spread: number | null;
+        short_strangle: number | null;
+        iron_condor: number | null;
+        calendar_spread: number | null;
+      } | null;
+      macro: { vix: number | null; vix_3m: number | null } | null;
+    };
+
+    // top-level scalars
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.underlying_price).toBe('number');
+    expect(r.underlying_price).toBeGreaterThan(0);
+    expect(typeof r.as_of).toBe('string');
+    expect(typeof r.market_open).toBe('boolean');
+
+    // vrp.* core block
+    expect(r.vrp).toBeDefined();
+    expect(typeof r.vrp).toBe('object');
+    expect(typeof r.vrp.history_days).toBe('number');
+    for (const k of ['atm_iv', 'rv_5d', 'rv_10d', 'rv_20d', 'rv_30d',
+                     'vrp_5d', 'vrp_10d', 'vrp_20d', 'vrp_30d', 'z_score', 'percentile'] as const) {
+      const v = r.vrp[k];
+      expect(v === null || typeof v === 'number').toBe(true);
+    }
+
+    // directional.* — note canonical names downside_vrp / upside_vrp
+    expect(r.directional).toBeDefined();
+    for (const k of ['put_wing_iv_25d', 'call_wing_iv_25d', 'downside_rv_20d',
+                     'upside_rv_20d', 'downside_vrp', 'upside_vrp'] as const) {
+      const v = r.directional[k];
+      expect(v === null || typeof v === 'number').toBe(true);
+    }
+
+    // regime.*
+    expect(r.regime).toBeDefined();
+    expect(typeof r.regime.gamma).toBe('string');
+    expect(typeof r.regime.net_gex).toBe('number');
+
+    // term_vrp[]
+    expect(Array.isArray(r.term_vrp)).toBe(true);
+    if (r.term_vrp.length > 0) {
+      const p = r.term_vrp[0]!;
+      expect(typeof p.dte).toBe('number');
+      expect(typeof p.iv).toBe('number');
+      expect(typeof p.rv).toBe('number');
+      expect(typeof p.vrp).toBe('number');
+    }
+
+    // optional groups — assert structure when present
+    if (r.gex_conditioned) {
+      expect(typeof r.gex_conditioned.regime).toBe('string');
+      expect(typeof r.gex_conditioned.harvest_score).toBe('number');
+      expect(typeof r.gex_conditioned.interpretation).toBe('string');
+    }
+    if (r.strategy_scores) {
+      for (const k of ['short_put_spread', 'short_strangle', 'iron_condor', 'calendar_spread'] as const) {
+        const v = r.strategy_scores[k];
+        expect(v === null || typeof v === 'number').toBe(true);
+      }
+    }
+    if (r.macro) {
+      const v = r.macro.vix;
+      expect(v === null || typeof v === 'number').toBe(true);
+    }
+  });
+
+  itest('vrp core metrics are nested under "vrp", not top-level (bug #1)', async () => {
+    const r = await fa!.vrp('SPY') as Record<string, unknown> & { vrp: { z_score: unknown } };
+    expect(r['z_score']).toBeUndefined();
+    expect(r['percentile']).toBeUndefined();
+    expect(r['atm_iv']).toBeUndefined();
+    expect(typeof r.vrp.z_score).toBe('number');
+  });
+
+  itest('harvest_score lives under gex_conditioned, not top-level (bug #1)', async () => {
+    const r = await fa!.vrp('SPY') as Record<string, unknown> & {
+      gex_conditioned: { harvest_score: number } | null;
+    };
+    expect(r['harvest_score']).toBeUndefined();
+    if (r.gex_conditioned !== null) {
+      expect(r.gex_conditioned).toHaveProperty('harvest_score');
+      expect(typeof r.gex_conditioned.harvest_score).toBe('number');
+    }
+  });
+
+  itest('net_gex on vrp lives under regime, not top-level (bug #1)', async () => {
+    const r = await fa!.vrp('SPY') as Record<string, unknown> & { regime: { net_gex: number } };
+    expect(r['net_gex']).toBeUndefined();
+    expect(typeof r.regime.net_gex).toBe('number');
+  });
+
+  itest('net_harvest_score + dealer_flow_risk are top-level on vrp', async () => {
+    const r = await fa!.vrp('SPY') as {
+      net_harvest_score: number | null;
+      dealer_flow_risk: number | null;
+    };
+    expect('net_harvest_score' in r).toBe(true);
+    expect('dealer_flow_risk' in r).toBe(true);
+    expect(r.net_harvest_score === null || typeof r.net_harvest_score === 'number').toBe(true);
+    expect(r.dealer_flow_risk === null || typeof r.dealer_flow_risk === 'number').toBe(true);
+  });
+
+  itest('exposureSummary("SPY").exposures.net_gex is the correct path; top-level net_gex is undefined (bug #1)', async () => {
+    const r = await fa!.exposureSummary('SPY') as Record<string, unknown> & {
+      symbol: string;
+      exposures: { net_gex: number };
+    };
+    expect(r['net_gex']).toBeUndefined();
+    expect(r.exposures).toBeDefined();
+    expect(typeof r.exposures.net_gex).toBe('number');
+    expect(r.symbol).toBe('SPY');
+  });
+
+  itest('directional uses downside_vrp/upside_vrp, not put_vrp/call_vrp (bug #2)', async () => {
+    const r = await fa!.vrp('SPY') as { directional: Record<string, unknown> };
+    expect(r.directional).toBeDefined();
+    expect(r.directional['put_vrp']).toBeUndefined();
+    expect(r.directional['call_vrp']).toBeUndefined();
+    expect('downside_vrp' in r.directional).toBe(true);
+    expect('upside_vrp' in r.directional).toBe(true);
+  });
+
+  itest('stockSummary("SPY") returns data from canonical /v1/stock/{sym}/summary (bug #3)', async () => {
+    const r = await fa!.stockSummary('SPY') as { symbol: string };
+    expect(r).toBeDefined();
+    expect(r.symbol).toBe('SPY');
+  });
+
+  itest('stockQuote("SPY") returns data from bare /stockquote/{sym}', async () => {
+    const r = await fa!.stockQuote('SPY') as { ticker: string; bid: number; ask: number };
+    expect(r).toBeDefined();
+    expect(r.ticker).toBe('SPY');
+    expect(typeof r.bid).toBe('number');
+    expect(typeof r.ask).toBe('number');
+  });
+
+  itest('all exposure methods return symbol === "SPY"', async () => {
+    const [g, d, v, c, summ, lev] = await Promise.all([
+      fa!.gex('SPY'), fa!.dex('SPY'), fa!.vex('SPY'), fa!.chex('SPY'),
+      fa!.exposureSummary('SPY'), fa!.exposureLevels('SPY'),
+    ]) as Array<{ symbol: string }>;
+    expect(g.symbol).toBe('SPY');
+    expect(d.symbol).toBe('SPY');
+    expect(v.symbol).toBe('SPY');
+    expect(c.symbol).toBe('SPY');
+    expect(summ.symbol).toBe('SPY');
+    expect(lev.symbol).toBe('SPY');
+  });
+
+  itest('screener({ limit: 5 }) returns valid envelope; canonical path is POST /v1/screener (bug #4)', async () => {
+    const r = await fa!.screener({ limit: 5 }) as {
+      meta: {
+        total_count: number;
+        returned_count: number;
+        universe_size: number;
+        tier: string;
+        as_of: string;
+      };
+      data: unknown[];
+    };
+    expect(r.meta).toBeDefined();
+    expect(typeof r.meta.total_count).toBe('number');
+    expect(typeof r.meta.returned_count).toBe('number');
+    expect(typeof r.meta.universe_size).toBe('number');
+    expect(typeof r.meta.tier).toBe('string');
+    expect(typeof r.meta.as_of).toBe('string');
+    expect(r.meta.returned_count).toBeLessThanOrEqual(5);
+    expect(Array.isArray(r.data)).toBe(true);
+    expect(r.data.length).toBeLessThanOrEqual(5);
+  });
+
+  itest('screener({ select: ["*"], limit: 1 }) returns rows with symbol/price/regime fields', async () => {
+    const r = await fa!.screener({ select: ['*'], limit: 1 }) as {
+      data: Array<{ symbol: string; price: number; regime: string | null }>;
+    };
+    expect(r.data.length).toBeGreaterThan(0);
+    const row = r.data[0]!;
+    expect(typeof row.symbol).toBe('string');
+    expect(row).toHaveProperty('price');
+    expect(row).toHaveProperty('regime');
+  });
 });
