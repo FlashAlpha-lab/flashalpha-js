@@ -15,6 +15,7 @@ import {
   ServerError,
   TierRestrictedError,
 } from './errors';
+import type { ZeroDteResponse } from './types';
 
 const BASE_URL = 'https://lab.flashalpha.com';
 const DEFAULT_TIMEOUT = 30_000; // milliseconds
@@ -374,11 +375,18 @@ export class FlashAlpha {
     return this._get(`/v1/exposure/narrative/${symbol}`);
   }
 
-  /** Real-time 0DTE analytics: regime, expected move, pin risk, hedging, decay. Requires Growth+. */
-  async zeroDte(symbol: string, options: ZeroDteOptions = {}): Promise<unknown> {
+  /**
+   * Real-time 0DTE analytics: regime, expected move, pin risk, hedging, decay.
+   * Requires Growth+.
+   *
+   * Returns a typed `ZeroDteResponse` — the runtime payload is identical to
+   * what the API ships. Existing callers that did `as any` keep working;
+   * new callers get autocomplete and type-checking on documented fields.
+   */
+  async zeroDte(symbol: string, options: ZeroDteOptions = {}): Promise<ZeroDteResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.strikeRange !== undefined) params['strike_range'] = options.strikeRange;
-    return this._get(`/v1/exposure/zero-dte/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/zero-dte/${symbol}`, Object.keys(params).length ? params : undefined) as Promise<ZeroDteResponse>;
   }
 
   /** Daily exposure snapshots for trend analysis. Requires Growth+. */

@@ -179,7 +179,10 @@ describe('FlashAlpha Integration Tests (live API)', () => {
   // wall strength + level cluster, the new liquidity & metadata sections,
   // and per-strike greeks/quotes. Uses SPX which has daily 0DTE.
   itest('zeroDte("SPX") includes all v0.3.4 new fields', async () => {
-    const r = await fa!.zeroDte('SPX') as Record<string, unknown>;
+    // Cast through unknown so the dynamic-key assertions below remain a
+    // simple shape check rather than typed access. The typed-access path
+    // is exercised separately by the "ZeroDteResponse exposes typed fields" test.
+    const r = await fa!.zeroDte('SPX') as unknown as Record<string, unknown>;
     expect(r['symbol']).toBe('SPX');
     if (r['no_zero_dte']) {
       expect(r).toHaveProperty('next_zero_dte_expiry');
@@ -297,6 +300,190 @@ describe('FlashAlpha Integration Tests (live API)', () => {
                        'call_spread_pct', 'put_spread_pct']) {
         expect(s).toHaveProperty(k);
       }
+    }
+  });
+
+  // Comprehensive end-to-end test of the typed ZeroDteResponse interface.
+  // Mirrors the untyped "v0.3.4 new fields" test field-for-field, but every
+  // assertion is via the typed property path. Locks in that every name in
+  // the TypeScript interface matches what the API actually ships.
+  itest('zeroDte("SPX") typed ZeroDteResponse — all fields populated', async () => {
+    const r = await fa!.zeroDte('SPX');
+    expect(r.symbol).toBe('SPX');
+    if (r.no_zero_dte) {
+      expect(r.next_zero_dte_expiry).toBeDefined();
+      return;
+    }
+
+    // top-level
+    expect(typeof r.underlying_price).toBe('number');
+    expect(r).toHaveProperty('expiration');
+    expect(typeof r.as_of).toBe('string');
+    expect(typeof r.market_open).toBe('boolean');
+    expect(r).toHaveProperty('time_to_close_hours');
+    expect(r).toHaveProperty('time_to_close_pct');
+
+    // regime
+    expect(r.regime).toBeDefined();
+    expect(r.regime).toHaveProperty('label');
+    expect(r.regime).toHaveProperty('description');
+    expect(r.regime).toHaveProperty('gamma_flip');
+    expect(r.regime).toHaveProperty('spot_vs_flip');
+    expect(r.regime).toHaveProperty('spot_to_flip_pct');
+    expect(r.regime).toHaveProperty('distance_to_flip_dollars');
+    expect(r.regime).toHaveProperty('distance_to_flip_sigmas');
+
+    // exposures
+    expect(r.exposures).toBeDefined();
+    expect(r.exposures).toHaveProperty('net_gex');
+    expect(r.exposures).toHaveProperty('net_dex');
+    expect(r.exposures).toHaveProperty('net_vex');
+    expect(r.exposures).toHaveProperty('net_chex');
+    expect(r.exposures).toHaveProperty('pct_of_total_gex');
+    expect(r.exposures).toHaveProperty('total_chain_net_gex');
+
+    // expected_move
+    expect(r.expected_move).toBeDefined();
+    expect(r.expected_move).toHaveProperty('implied_1sd_dollars');
+    expect(r.expected_move).toHaveProperty('implied_1sd_pct');
+    expect(r.expected_move).toHaveProperty('remaining_1sd_dollars');
+    expect(r.expected_move).toHaveProperty('remaining_1sd_pct');
+    expect(r.expected_move).toHaveProperty('upper_bound');
+    expect(r.expected_move).toHaveProperty('lower_bound');
+    expect(r.expected_move).toHaveProperty('straddle_price');
+    expect(r.expected_move).toHaveProperty('atm_iv');
+
+    // pin_risk
+    expect(r.pin_risk).toBeDefined();
+    expect(r.pin_risk).toHaveProperty('magnet_strike');
+    expect(r.pin_risk).toHaveProperty('magnet_gex');
+    expect(r.pin_risk).toHaveProperty('distance_to_magnet_pct');
+    expect(r.pin_risk).toHaveProperty('pin_score');
+    expect(r.pin_risk).toHaveProperty('components');
+    expect(r.pin_risk).toHaveProperty('max_pain');
+    expect(r.pin_risk).toHaveProperty('oi_concentration_top3_pct');
+    expect(r.pin_risk).toHaveProperty('description');
+    expect(r.pin_risk!.components).toHaveProperty('oi_score');
+    expect(r.pin_risk!.components).toHaveProperty('proximity_score');
+    expect(r.pin_risk!.components).toHaveProperty('time_score');
+    expect(r.pin_risk!.components).toHaveProperty('gamma_score');
+
+    // hedging — all 8 buckets + convexity_at_spot
+    expect(r.hedging).toBeDefined();
+    const buckets = [
+      r.hedging!.spot_up_10bp, r.hedging!.spot_down_10bp,
+      r.hedging!.spot_up_25bp, r.hedging!.spot_down_25bp,
+      r.hedging!.spot_up_half_pct, r.hedging!.spot_down_half_pct,
+      r.hedging!.spot_up_1pct, r.hedging!.spot_down_1pct,
+    ];
+    for (const b of buckets) {
+      expect(b).toBeDefined();
+      expect(b).toHaveProperty('dealer_shares_to_trade');
+      expect(b).toHaveProperty('direction');
+      expect(b).toHaveProperty('notional_usd');
+    }
+    expect(r.hedging).toHaveProperty('convexity_at_spot');
+
+    // decay
+    expect(r.decay).toBeDefined();
+    expect(r.decay).toHaveProperty('net_theta_dollars');
+    expect(r.decay).toHaveProperty('theta_per_hour_remaining');
+    expect(r.decay).toHaveProperty('charm_regime');
+    expect(r.decay).toHaveProperty('charm_description');
+    expect(r.decay).toHaveProperty('gamma_acceleration');
+    expect(r.decay).toHaveProperty('description');
+
+    // vol_context
+    expect(r.vol_context).toBeDefined();
+    expect(r.vol_context).toHaveProperty('zero_dte_atm_iv');
+    expect(r.vol_context).toHaveProperty('seven_dte_atm_iv');
+    expect(r.vol_context).toHaveProperty('iv_ratio_0dte_7dte');
+    expect(r.vol_context).toHaveProperty('vix');
+    expect(r.vol_context).toHaveProperty('vanna_exposure');
+    expect(r.vol_context).toHaveProperty('vanna_interpretation');
+    expect(r.vol_context).toHaveProperty('description');
+
+    // flow
+    expect(r.flow).toBeDefined();
+    expect(r.flow).toHaveProperty('total_volume');
+    expect(r.flow).toHaveProperty('call_volume');
+    expect(r.flow).toHaveProperty('put_volume');
+    expect(r.flow).toHaveProperty('net_call_minus_put_volume');
+    expect(r.flow).toHaveProperty('total_oi');
+    expect(r.flow).toHaveProperty('call_oi');
+    expect(r.flow).toHaveProperty('put_oi');
+    expect(r.flow).toHaveProperty('pc_ratio_volume');
+    expect(r.flow).toHaveProperty('pc_ratio_oi');
+    expect(r.flow).toHaveProperty('volume_to_oi_ratio');
+    expect(r.flow).toHaveProperty('atm_volume_share_pct');
+    expect(r.flow).toHaveProperty('top3_strike_volume_pct');
+
+    // levels
+    expect(r.levels).toBeDefined();
+    expect(r.levels).toHaveProperty('call_wall');
+    expect(r.levels).toHaveProperty('call_wall_gex');
+    expect(r.levels).toHaveProperty('call_wall_strength');
+    expect(r.levels).toHaveProperty('distance_to_call_wall_pct');
+    expect(r.levels).toHaveProperty('put_wall');
+    expect(r.levels).toHaveProperty('put_wall_gex');
+    expect(r.levels).toHaveProperty('put_wall_strength');
+    expect(r.levels).toHaveProperty('distance_to_put_wall_pct');
+    expect(r.levels).toHaveProperty('distance_to_magnet_dollars');
+    expect(r.levels).toHaveProperty('highest_oi_strike');
+    expect(r.levels).toHaveProperty('highest_oi_total');
+    expect(r.levels).toHaveProperty('max_positive_gamma');
+    expect(r.levels).toHaveProperty('max_negative_gamma');
+    expect(r.levels).toHaveProperty('level_cluster_score');
+
+    // liquidity
+    expect(r.liquidity).toBeDefined();
+    expect(r.liquidity).toHaveProperty('atm_spread_pct');
+    expect(r.liquidity).toHaveProperty('weighted_spread_pct');
+    expect(r.liquidity).toHaveProperty('execution_score');
+
+    // metadata
+    expect(r.metadata).toBeDefined();
+    expect(r.metadata).toHaveProperty('snapshot_age_seconds');
+    expect(r.metadata).toHaveProperty('chain_contract_count');
+    expect(r.metadata).toHaveProperty('data_quality_score');
+    expect(r.metadata).toHaveProperty('greek_smoothness_score');
+
+    // strikes[0] — every per-strike field
+    expect(Array.isArray(r.strikes)).toBe(true);
+    if (r.strikes && r.strikes.length > 0) {
+      const s = r.strikes[0]!;
+      expect(typeof s.strike).toBe('number');
+      expect(s.strike).toBeGreaterThan(0);
+      expect(s).toHaveProperty('distance_from_spot_pct');
+      expect(s).toHaveProperty('call_symbol');
+      expect(s).toHaveProperty('put_symbol');
+      expect(s).toHaveProperty('call_gex');
+      expect(s).toHaveProperty('put_gex');
+      expect(s).toHaveProperty('net_gex');
+      expect(s).toHaveProperty('call_dex');
+      expect(s).toHaveProperty('put_dex');
+      expect(s).toHaveProperty('net_dex');
+      expect(s).toHaveProperty('net_vex');
+      expect(s).toHaveProperty('net_chex');
+      expect(s).toHaveProperty('call_oi');
+      expect(s).toHaveProperty('put_oi');
+      expect(s).toHaveProperty('call_volume');
+      expect(s).toHaveProperty('put_volume');
+      expect(s).toHaveProperty('gex_share_pct');
+      expect(s).toHaveProperty('oi_share_pct');
+      expect(s).toHaveProperty('volume_share_pct');
+      expect(s).toHaveProperty('call_iv');
+      expect(s).toHaveProperty('put_iv');
+      expect(s).toHaveProperty('call_delta');
+      expect(s).toHaveProperty('put_delta');
+      expect(s).toHaveProperty('call_gamma');
+      expect(s).toHaveProperty('put_gamma');
+      expect(s).toHaveProperty('call_theta');
+      expect(s).toHaveProperty('put_theta');
+      expect(s).toHaveProperty('call_mid');
+      expect(s).toHaveProperty('put_mid');
+      expect(s).toHaveProperty('call_spread_pct');
+      expect(s).toHaveProperty('put_spread_pct');
     }
   });
 

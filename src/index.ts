@@ -40,3 +40,20 @@ export {
   ServerError,
   TierRestrictedError,
 } from './errors';
+export type {
+  ZeroDteDecay,
+  ZeroDteExpectedMove,
+  ZeroDteExposures,
+  ZeroDteFlow,
+  ZeroDteHedging,
+  ZeroDteHedgingBucket,
+  ZeroDteLevels,
+  ZeroDteLiquidity,
+  ZeroDteMetadata,
+  ZeroDtePinComponents,
+  ZeroDtePinRisk,
+  ZeroDteRegime,
+  ZeroDteResponse,
+  ZeroDteStrike,
+  ZeroDteVolContext,
+} from './types';
