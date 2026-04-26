@@ -174,6 +174,132 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     }
   });
 
+  // Validate the full 0DTE response shape — fine-grained hedging buckets,
+  // distance-to-flip in dollars/sigmas, pin sub-scores, flow concentration,
+  // wall strength + level cluster, the new liquidity & metadata sections,
+  // and per-strike greeks/quotes. Uses SPX which has daily 0DTE.
+  itest('zeroDte("SPX") includes all v0.3.4 new fields', async () => {
+    const r = await fa!.zeroDte('SPX') as Record<string, unknown>;
+    expect(r['symbol']).toBe('SPX');
+    if (r['no_zero_dte']) {
+      expect(r).toHaveProperty('next_zero_dte_expiry');
+      return;
+    }
+
+    for (const k of ['underlying_price', 'expiration', 'as_of', 'market_open',
+                     'time_to_close_hours', 'time_to_close_pct']) {
+      expect(r).toHaveProperty(k);
+    }
+
+    const regime = r['regime'] as Record<string, unknown>;
+    for (const k of ['label', 'description', 'gamma_flip', 'spot_vs_flip', 'spot_to_flip_pct',
+                     'distance_to_flip_dollars', 'distance_to_flip_sigmas']) {
+      expect(regime).toHaveProperty(k);
+    }
+
+    const exposures = r['exposures'] as Record<string, unknown>;
+    for (const k of ['net_gex', 'net_dex', 'net_vex', 'net_chex',
+                     'pct_of_total_gex', 'total_chain_net_gex']) {
+      expect(exposures).toHaveProperty(k);
+    }
+
+    const em = r['expected_move'] as Record<string, unknown>;
+    for (const k of ['implied_1sd_dollars', 'implied_1sd_pct', 'remaining_1sd_dollars',
+                     'remaining_1sd_pct', 'upper_bound', 'lower_bound',
+                     'straddle_price', 'atm_iv']) {
+      expect(em).toHaveProperty(k);
+    }
+
+    const pr = r['pin_risk'] as Record<string, unknown>;
+    for (const k of ['magnet_strike', 'magnet_gex', 'distance_to_magnet_pct',
+                     'pin_score', 'components', 'max_pain',
+                     'oi_concentration_top3_pct', 'description']) {
+      expect(pr).toHaveProperty(k);
+    }
+    const components = pr['components'] as Record<string, unknown>;
+    for (const k of ['oi_score', 'proximity_score', 'time_score', 'gamma_score']) {
+      expect(components).toHaveProperty(k);
+    }
+
+    const hedging = r['hedging'] as Record<string, unknown>;
+    for (const bucket of ['spot_up_10bp', 'spot_down_10bp',
+                          'spot_up_25bp', 'spot_down_25bp',
+                          'spot_up_half_pct', 'spot_down_half_pct',
+                          'spot_up_1pct', 'spot_down_1pct']) {
+      expect(hedging).toHaveProperty(bucket);
+      const b = hedging[bucket] as Record<string, unknown>;
+      for (const k of ['dealer_shares_to_trade', 'direction', 'notional_usd']) {
+        expect(b).toHaveProperty(k);
+      }
+    }
+    expect(hedging).toHaveProperty('convexity_at_spot');
+
+    const decay = r['decay'] as Record<string, unknown>;
+    for (const k of ['net_theta_dollars', 'theta_per_hour_remaining', 'charm_regime',
+                     'charm_description', 'gamma_acceleration', 'description']) {
+      expect(decay).toHaveProperty(k);
+    }
+
+    const vc = r['vol_context'] as Record<string, unknown>;
+    for (const k of ['zero_dte_atm_iv', 'seven_dte_atm_iv', 'iv_ratio_0dte_7dte',
+                     'vix', 'vanna_exposure', 'vanna_interpretation', 'description']) {
+      expect(vc).toHaveProperty(k);
+    }
+
+    const flow = r['flow'] as Record<string, unknown>;
+    for (const k of ['total_volume', 'call_volume', 'put_volume',
+                     'net_call_minus_put_volume',
+                     'total_oi', 'call_oi', 'put_oi',
+                     'pc_ratio_volume', 'pc_ratio_oi', 'volume_to_oi_ratio',
+                     'atm_volume_share_pct', 'top3_strike_volume_pct']) {
+      expect(flow).toHaveProperty(k);
+    }
+
+    const levels = r['levels'] as Record<string, unknown>;
+    for (const k of ['call_wall', 'call_wall_gex', 'call_wall_strength',
+                     'distance_to_call_wall_pct',
+                     'put_wall', 'put_wall_gex', 'put_wall_strength',
+                     'distance_to_put_wall_pct',
+                     'distance_to_magnet_dollars',
+                     'highest_oi_strike', 'highest_oi_total',
+                     'max_positive_gamma', 'max_negative_gamma',
+                     'level_cluster_score']) {
+      expect(levels).toHaveProperty(k);
+    }
+
+    const liquidity = r['liquidity'] as Record<string, unknown>;
+    for (const k of ['atm_spread_pct', 'weighted_spread_pct', 'execution_score']) {
+      expect(liquidity).toHaveProperty(k);
+    }
+
+    const metadata = r['metadata'] as Record<string, unknown>;
+    for (const k of ['snapshot_age_seconds', 'chain_contract_count',
+                     'data_quality_score', 'greek_smoothness_score']) {
+      expect(metadata).toHaveProperty(k);
+    }
+
+    const strikes = r['strikes'] as Array<Record<string, unknown>>;
+    expect(Array.isArray(strikes)).toBe(true);
+    if (strikes.length > 0) {
+      const s = strikes[0]!;
+      for (const k of ['strike', 'distance_from_spot_pct',
+                       'call_symbol', 'put_symbol',
+                       'call_gex', 'put_gex', 'net_gex',
+                       'call_dex', 'put_dex', 'net_dex',
+                       'net_vex', 'net_chex',
+                       'call_oi', 'put_oi', 'call_volume', 'put_volume',
+                       'gex_share_pct', 'oi_share_pct', 'volume_share_pct',
+                       'call_iv', 'put_iv',
+                       'call_delta', 'put_delta',
+                       'call_gamma', 'put_gamma',
+                       'call_theta', 'put_theta',
+                       'call_mid', 'put_mid',
+                       'call_spread_pct', 'put_spread_pct']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+  });
+
   // ── Max Pain (Growth+) ─────────────────────────────────────────────────────
 
   itest('maxPain("SPY") returns max pain analysis', async () => {
