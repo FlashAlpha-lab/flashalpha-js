@@ -20,6 +20,9 @@ import type { ZeroDteResponse } from './types';
 const BASE_URL = 'https://lab.flashalpha.com';
 const DEFAULT_TIMEOUT = 30_000; // milliseconds
 
+/** URL-escape a single path segment (e.g. a ticker) — escapes / ? % etc. */
+const _seg = (s: string): string => encodeURIComponent(s);
+
 // Minimal fetch-compatible type subset used internally
 type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -288,7 +291,7 @@ export class FlashAlpha {
 
   /** Live stock quote (bid/ask/mid/last). */
   async stockQuote(ticker: string): Promise<unknown> {
-    return this._get(`/stockquote/${ticker}`);
+    return this._get(`/stockquote/${_seg(ticker)}`);
   }
 
   /** Option quotes with greeks. Requires Growth+. */
@@ -297,17 +300,17 @@ export class FlashAlpha {
     if (options.expiry) params['expiry'] = options.expiry;
     if (options.strike !== undefined) params['strike'] = options.strike;
     if (options.type) params['type'] = options.type;
-    return this._get(`/optionquote/${ticker}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/optionquote/${_seg(ticker)}`, Object.keys(params).length ? params : undefined);
   }
 
   /** Volatility surface grid (public, no auth required). */
   async surface(symbol: string): Promise<unknown> {
-    return this._get(`/v1/surface/${symbol}`);
+    return this._get(`/v1/surface/${_seg(symbol)}`);
   }
 
   /** Comprehensive stock summary (price, vol, exposure, macro). */
   async stockSummary(symbol: string): Promise<unknown> {
-    return this._get(`/v1/stock/${symbol}/summary`);
+    return this._get(`/v1/stock/${_seg(symbol)}/summary`);
   }
 
   // ── Historical ────────────────────────────────────────────────────────────
@@ -316,7 +319,7 @@ export class FlashAlpha {
   async historicalStockQuote(ticker: string, options: HistoricalStockQuoteOptions): Promise<unknown> {
     const params: Record<string, string | number | undefined> = { date: options.date };
     if (options.time) params['time'] = options.time;
-    return this._get(`/historical/stockquote/${ticker}`, params);
+    return this._get(`/historical/stockquote/${_seg(ticker)}`, params);
   }
 
   /** Historical option quotes (minute-by-minute). */
@@ -326,7 +329,7 @@ export class FlashAlpha {
     if (options.expiry) params['expiry'] = options.expiry;
     if (options.strike !== undefined) params['strike'] = options.strike;
     if (options.type) params['type'] = options.type;
-    return this._get(`/historical/optionquote/${ticker}`, params);
+    return this._get(`/historical/optionquote/${_seg(ticker)}`, params);
   }
 
   // ── Exposure Analytics ────────────────────────────────────────────────────
@@ -336,43 +339,43 @@ export class FlashAlpha {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
     if (options.minOi !== undefined) params['min_oi'] = options.minOi;
-    return this._get(`/v1/exposure/gex/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/gex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
   }
 
   /** Delta exposure by strike. */
   async dex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/dex/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/dex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
   }
 
   /** Vanna exposure by strike. */
   async vex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/vex/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/vex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
   }
 
   /** Charm exposure by strike. */
   async chex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/chex/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/chex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
   }
 
   /** Full exposure summary (GEX/DEX/VEX/CHEX + hedging). Requires Growth+. */
   async exposureSummary(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/summary/${symbol}`);
+    return this._get(`/v1/exposure/summary/${_seg(symbol)}`);
   }
 
   /** Key support/resistance levels from options exposure. */
   async exposureLevels(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/levels/${symbol}`);
+    return this._get(`/v1/exposure/levels/${_seg(symbol)}`);
   }
 
   /** Verbal narrative analysis of exposure. Requires Growth+. */
   async narrative(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/narrative/${symbol}`);
+    return this._get(`/v1/exposure/narrative/${_seg(symbol)}`);
   }
 
   /**
@@ -386,14 +389,14 @@ export class FlashAlpha {
   async zeroDte(symbol: string, options: ZeroDteOptions = {}): Promise<ZeroDteResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.strikeRange !== undefined) params['strike_range'] = options.strikeRange;
-    return this._get(`/v1/exposure/zero-dte/${symbol}`, Object.keys(params).length ? params : undefined) as Promise<ZeroDteResponse>;
+    return this._get(`/v1/exposure/zero-dte/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<ZeroDteResponse>;
   }
 
   /** Daily exposure snapshots for trend analysis. Requires Growth+. */
   async exposureHistory(symbol: string, options: ExposureHistoryOptions = {}): Promise<unknown> {
     const params: Record<string, string | number | undefined> = {};
     if (options.days !== undefined) params['days'] = options.days;
-    return this._get(`/v1/exposure/history/${symbol}`, Object.keys(params).length ? params : undefined);
+    return this._get(`/v1/exposure/history/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
   }
 
   // ── Pricing & Sizing ──────────────────────────────────────────────────────
@@ -446,12 +449,12 @@ export class FlashAlpha {
 
   /** Comprehensive volatility analysis. Requires Growth+. */
   async volatility(symbol: string): Promise<unknown> {
-    return this._get(`/v1/volatility/${symbol}`);
+    return this._get(`/v1/volatility/${_seg(symbol)}`);
   }
 
   /** Advanced volatility analytics: SVI parameters, variance surface, arbitrage detection. Requires Alpha+. */
   async advVolatility(symbol: string): Promise<unknown> {
-    return this._get(`/v1/adv_volatility/${symbol}`);
+    return this._get(`/v1/adv_volatility/${_seg(symbol)}`);
   }
 
   // ── Reference Data ────────────────────────────────────────────────────────
@@ -463,7 +466,7 @@ export class FlashAlpha {
 
   /** Option chain metadata (expirations + strikes). */
   async options(ticker: string): Promise<unknown> {
-    return this._get(`/v1/options/${ticker}`);
+    return this._get(`/v1/options/${_seg(ticker)}`);
   }
 
   /** Currently queried symbols with live data. */
@@ -498,7 +501,7 @@ export class FlashAlpha {
    * console.log(r.vrp.z_score, r.directional.downside_vrp);
    */
   async vrp(symbol: string): Promise<unknown> {
-    return this._get(`/v1/vrp/${symbol}`);
+    return this._get(`/v1/vrp/${_seg(symbol)}`);
   }
 
   // ── Account & System ──────────────────────────────────────────────────────
@@ -506,7 +509,7 @@ export class FlashAlpha {
   /** Max pain analysis with dealer alignment, pain curve, OI breakdown,
    * expected move, pin probability, multi-expiry calendar. Growth+. */
   async maxPain(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
-    return this._get(`/v1/maxpain/${symbol}`, options.expiration !== undefined
+    return this._get(`/v1/maxpain/${_seg(symbol)}`, options.expiration !== undefined
       ? { expiration: options.expiration } : undefined);
   }
 
