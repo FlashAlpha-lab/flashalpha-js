@@ -715,6 +715,86 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     }
   });
 
+  itest('vrp — every field declared in VrpResponse must be referenced', async () => {
+    type Macro = {
+      vix: number; vix_3m: number; vix_term_slope: number;
+      dgs10: number; hy_spread: number | null; fed_funds: number;
+    };
+    type Term = { dte: number; iv: number; rv: number; vrp: number };
+    type Reg = { gamma: string; vrp_regime: string; net_gex: number; gamma_flip: number };
+    const r = await fa!.vrp('SPY') as Record<string, unknown> & {
+      symbol: string; underlying_price: number; as_of: string; market_open: boolean;
+      vrp: Record<string, number | null>;
+      variance_risk_premium: number; convexity_premium: number; fair_vol: number;
+      directional: Record<string, number>;
+      term_vrp: Term[];
+      gex_conditioned: { regime: string; harvest_score: number; interpretation: string };
+      vanna_conditioned: { outlook: string; interpretation: string };
+      regime: Reg;
+      strategy_scores: Record<string, number>;
+      net_harvest_score: number;
+      dealer_flow_risk: number;
+      warnings: string[];
+      macro: Macro;
+    };
+    // Customer traps: must NOT be top-level
+    for (const trap of ['z_score', 'percentile', 'atm_iv', 'net_gex', 'put_vrp', 'call_vrp', 'harvest_score']) {
+      expect(r[trap]).toBeUndefined();
+    }
+    // top-level
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.underlying_price).toBe('number');
+    expect(typeof r.as_of).toBe('string');
+    expect(typeof r.market_open).toBe('boolean');
+    expect(typeof r.variance_risk_premium).toBe('number');
+    expect(typeof r.convexity_premium).toBe('number');
+    expect(typeof r.fair_vol).toBe('number');
+    expect(typeof r.net_harvest_score).toBe('number');
+    expect(typeof r.dealer_flow_risk).toBe('number');
+    expect(Array.isArray(r.warnings)).toBe(true);
+    // vrp.* core
+    for (const k of ['atm_iv', 'rv_5d', 'rv_10d', 'rv_20d', 'rv_30d',
+                     'vrp_5d', 'vrp_10d', 'vrp_20d', 'vrp_30d']) {
+      expect(typeof r.vrp[k]).toBe('number');
+    }
+    expect(typeof r.vrp.z_score).toBe('number');
+    expect(typeof r.vrp.percentile).toBe('number');
+    expect(typeof r.vrp.history_days).toBe('number');
+    // directional
+    for (const k of ['put_wing_iv_25d', 'call_wing_iv_25d',
+                     'downside_rv_20d', 'upside_rv_20d',
+                     'downside_vrp', 'upside_vrp']) {
+      expect(typeof r.directional[k]).toBe('number');
+    }
+    // term_vrp[]
+    expect(r.term_vrp.length).toBeGreaterThan(0);
+    const t = r.term_vrp[0];
+    expect(typeof t.dte).toBe('number');
+    for (const k of ['iv', 'rv', 'vrp'] as const) expect(typeof t[k]).toBe('number');
+    // gex_conditioned + vanna_conditioned
+    expect(typeof r.gex_conditioned.regime).toBe('string');
+    expect(typeof r.gex_conditioned.harvest_score).toBe('number');
+    expect(typeof r.gex_conditioned.interpretation).toBe('string');
+    expect(typeof r.vanna_conditioned.outlook).toBe('string');
+    expect(typeof r.vanna_conditioned.interpretation).toBe('string');
+    // regime — net_gex lives HERE
+    expect(typeof r.regime.gamma).toBe('string');
+    expect(typeof r.regime.vrp_regime).toBe('string');
+    expect(typeof r.regime.net_gex).toBe('number');
+    expect(typeof r.regime.gamma_flip).toBe('number');
+    // strategy_scores
+    for (const k of ['short_put_spread', 'short_strangle', 'iron_condor', 'calendar_spread']) {
+      expect(typeof r.strategy_scores[k]).toBe('number');
+    }
+    // macro — live includes fed_funds
+    for (const k of ['vix', 'vix_3m', 'vix_term_slope', 'dgs10'] as const) {
+      expect(typeof r.macro[k]).toBe('number');
+    }
+    expect('hy_spread' in r.macro).toBe(true);
+    expect(r.macro.hy_spread === null || typeof r.macro.hy_spread === 'number').toBe(true);
+    expect(typeof r.macro.fed_funds).toBe('number');
+  });
+
   itest('vrp core metrics are nested under "vrp", not top-level (bug #1)', async () => {
     const r = await fa!.vrp('SPY') as Record<string, unknown> & { vrp: { z_score: unknown } };
     expect(r['z_score']).toBeUndefined();
