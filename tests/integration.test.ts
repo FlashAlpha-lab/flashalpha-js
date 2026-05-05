@@ -751,15 +751,57 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     expect(r.dealer_flow_risk === null || typeof r.dealer_flow_risk === 'number').toBe(true);
   });
 
-  itest('exposureSummary("SPY").exposures.net_gex is the correct path; top-level net_gex is undefined (bug #1)', async () => {
+  itest('exposureSummary — every field declared in ExposureSummaryResponse must be referenced', async () => {
     const r = await fa!.exposureSummary('SPY') as Record<string, unknown> & {
       symbol: string;
-      exposures: { net_gex: number };
+      underlying_price: number;
+      as_of: string;
+      gamma_flip: number;
+      regime: string;
+      exposures: { net_gex: number; net_dex: number; net_vex: number; net_chex: number };
+      interpretation: { gamma: string; vanna: string; charm: string };
+      hedging_estimate: {
+        spot_up_1pct: { dealer_shares_to_trade: number; direction: string; notional_usd: number };
+        spot_down_1pct: { dealer_shares_to_trade: number; direction: string; notional_usd: number };
+      };
+      zero_dte: { net_gex: number | null; pct_of_total_gex: number | null; expiration: string | null };
     };
+    // Original bug #1 — top-level net_gex must NOT exist (customer-trap)
     expect(r['net_gex']).toBeUndefined();
-    expect(r.exposures).toBeDefined();
-    expect(typeof r.exposures.net_gex).toBe('number');
+    // ── top-level scalars ──
     expect(r.symbol).toBe('SPY');
+    expect(typeof r.underlying_price).toBe('number');
+    expect(typeof r.as_of).toBe('string');
+    expect(r.as_of.length).toBeGreaterThan(0);
+    expect(typeof r.gamma_flip).toBe('number');
+    expect(['positive_gamma', 'negative_gamma', 'neutral', 'undetermined']).toContain(r.regime);
+    // ── exposures block (4 fields) ──
+    for (const k of ['net_gex', 'net_dex', 'net_vex', 'net_chex'] as const) {
+      expect(typeof r.exposures[k]).toBe('number');
+    }
+    // ── interpretation block (3 fields) ──
+    for (const k of ['gamma', 'vanna', 'charm'] as const) {
+      expect(typeof r.interpretation[k]).toBe('string');
+      expect(r.interpretation[k].length).toBeGreaterThan(0);
+    }
+    // ── hedging_estimate (every leaf on both sides) ──
+    const up = r.hedging_estimate.spot_up_1pct;
+    const down = r.hedging_estimate.spot_down_1pct;
+    for (const side of [up, down]) {
+      expect(['buy', 'sell']).toContain(side.direction);
+      expect(typeof side.dealer_shares_to_trade).toBe('number');
+      expect(typeof side.notional_usd).toBe('number');
+      expect(side.notional_usd).not.toBe(0);
+    }
+    expect(up.dealer_shares_to_trade).toBe(-down.dealer_shares_to_trade);
+    // ── zero_dte block (3 fields) ──
+    expect(r.zero_dte).toBeDefined();
+    expect('net_gex' in r.zero_dte).toBe(true);
+    expect(r.zero_dte.net_gex === null || typeof r.zero_dte.net_gex === 'number').toBe(true);
+    expect('pct_of_total_gex' in r.zero_dte).toBe(true);
+    expect(r.zero_dte.pct_of_total_gex === null || typeof r.zero_dte.pct_of_total_gex === 'number').toBe(true);
+    expect('expiration' in r.zero_dte).toBe(true);
+    expect(r.zero_dte.expiration === null || typeof r.zero_dte.expiration === 'string').toBe(true);
   });
 
   itest('directional uses downside_vrp/upside_vrp, not put_vrp/call_vrp (bug #2)', async () => {

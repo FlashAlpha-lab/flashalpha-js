@@ -214,3 +214,64 @@ export interface ZeroDteResponse {
   message?: string;
   next_zero_dte_expiry?: string | null;
 }
+
+
+// ─── ExposureSummary ─────────────────────────────────────────────────────────
+//
+// Typed model for `GET /v1/exposure/summary/{symbol}`.
+//
+// Direction casing: /v1/exposure/summary/ and /v1/exposure/zero-dte/ both
+// return lowercase "buy" / "sell". Docs and typed models use that casing
+// consistently.
+
+export interface ExposureSummaryExposures {
+  // Field-level `| null` matches C#/Go/Java (defensive — API may return null
+  // under unobserved edge conditions even when the parent block is present).
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+}
+
+export interface ExposureSummaryInterpretation {
+  gamma?: string | null;
+  vanna?: string | null;
+  charm?: string | null;
+}
+
+export interface ExposureSummaryHedgingMove {
+  dealer_shares_to_trade?: number | null;
+  direction?: 'buy' | 'sell' | null;
+  notional_usd?: number | null;
+}
+
+export interface ExposureSummaryHedgingEstimate {
+  spot_up_1pct?: ExposureSummaryHedgingMove;
+  spot_down_1pct?: ExposureSummaryHedgingMove;
+}
+
+export interface ExposureSummaryZeroDte {
+  net_gex?: number | null;
+  pct_of_total_gex?: number | null;
+  expiration?: string | null;
+}
+
+export interface ExposureSummaryResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  gamma_flip?: number | null;
+  /**
+   * Confirmed live values in tests across Py/JS/.NET/Go/Java:
+   *   positive_gamma | negative_gamma | neutral
+   * Documented fourth value: undetermined (when there's no usable options
+   * data). `neutral` appears in edge cases where net_gex straddles zero.
+   * Don't conflate with `maxpain.signal` (also bullish/bearish/neutral but
+   * a separate field).
+   */
+  regime?: 'positive_gamma' | 'negative_gamma' | 'neutral' | 'undetermined';
+  exposures?: ExposureSummaryExposures;
+  interpretation?: ExposureSummaryInterpretation;
+  hedging_estimate?: ExposureSummaryHedgingEstimate;
+  zero_dte?: ExposureSummaryZeroDte;
+}

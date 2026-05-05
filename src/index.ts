@@ -56,4 +56,11 @@ export type {
   ZeroDteResponse,
   ZeroDteStrike,
   ZeroDteVolContext,
+  // ── ExposureSummary ──
+  ExposureSummaryExposures,
+  ExposureSummaryHedgingEstimate,
+  ExposureSummaryHedgingMove,
+  ExposureSummaryInterpretation,
+  ExposureSummaryResponse,
+  ExposureSummaryZeroDte,
 } from './types';
