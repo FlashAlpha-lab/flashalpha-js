@@ -1,0 +1,104 @@
+# flashalpha (JavaScript / TypeScript SDK)
+
+> Official Node.js SDK for the [FlashAlpha](https://flashalpha.com)
+> options analytics API. Live dealer-positioning data — gamma exposure
+> (GEX), delta exposure (DEX), vanna / charm exposure (VEX / CHEX),
+> max pain, 0DTE analytics, variance risk premium (VRP), implied vol
+> surface, Black-Scholes-Merton greeks, Kelly position sizing, and a
+> live options screener — exposed as a single `FlashAlpha` class with
+> typed responses on every endpoint. Node 18+, zero runtime deps.
+
+## What FlashAlpha is
+
+FlashAlpha is a real-time options analytics API focused on **dealer
+positioning** — the inventory market makers carry from selling options
+to retail and institutions, and the hedging flow that inventory forces
+into spot. The headline analytics:
+
+- **Gamma exposure (GEX)**: dollar gamma dealers must re-hedge per 1%
+  spot move. Positive = mean-reverting tape; negative = trend-amplifying.
+- **Gamma flip, call wall, put wall**: the strike where dealer gamma
+  crosses zero, plus the highest-absolute-call-GEX and put-GEX strikes
+  (resistance and support).
+- **0DTE analytics**: pin risk, expected move, hedging buckets,
+  dealer-flow decomposition for the same-day expiry.
+- **Variance risk premium (VRP)**: spread between implied and realized
+  vol, with directional skew, term structure, GEX-conditioning, and a
+  0-100 harvest score.
+- **Max pain**: strike where total option-holder pain is minimized,
+  with dealer-alignment overlay and pin probability.
+
+## What this SDK provides
+
+A single `FlashAlpha` client class wrapping every public endpoint, with:
+
+- TypeScript interfaces for the major response shapes (rich JSDoc on
+  load-bearing fields — autocomplete in any editor, runtime cost zero)
+- typed errors (`AuthenticationError`, `TierRestrictedError`,
+  `RateLimitError`, `NotFoundError`, `ServerError`, `FlashAlphaError`)
+- Node-native `fetch` and `AbortController` (no axios, no node-fetch)
+
+Quick start:
+
+```ts
+import { FlashAlpha } from 'flashalpha';
+
+const fa = new FlashAlpha(process.env.FLASHALPHA_API_KEY!);
+
+const summary = await fa.exposureSummary('SPY');
+console.log(summary.regime, summary.gamma_flip);
+```
+
+## Key endpoints
+
+- `stockSummary(symbol)` — single best snapshot: price + IV + HV + VRP
+  + skew + term structure + flow + full exposure + macro in one call.
+- `exposureSummary(symbol)` — regime, GEX/DEX/VEX/CHEX, gamma flip,
+  walls, hedging estimate (Growth+).
+- `exposureLevels(symbol)` — just the key support/resistance strikes
+  (gamma flip, walls, max pos/neg gamma, highest OI, 0DTE magnet).
+- `narrative(symbol)` — LLM-friendly verbal output of the exposure
+  block, safe to surface verbatim into a chat UI (Growth+).
+- `zeroDte(symbol)` — full 0DTE dashboard: regime, expected move, pin
+  risk, hedging by spot bucket, decay, vol context, flow, levels
+  (Growth+).
+- `vrp(symbol)` — variance risk premium dashboard with directional
+  skew, term structure, GEX-conditioning, and harvest score (Alpha+).
+- `maxPain(symbol)` — max pain strike, pain curve, dealer alignment,
+  pin probability (Growth+).
+- `gex(symbol)` / `dex` / `vex` / `chex` — exposure curves by strike.
+- `greeks(opts)` — full BSM theoretical price + first/second/third-order
+  greeks for any (spot, strike, dte, sigma) point (public).
+- `iv(opts)` — implied vol from a market price.
+- `kelly(opts)` — Kelly-criterion optimal position sizing (Growth+).
+- `screener(opts)` — filter/rank symbols by GEX, VRP, IV, greeks,
+  harvest scores, or custom formulas (Growth+).
+
+Full method list with parameters lives in the
+[README](https://github.com/FlashAlpha-lab/flashalpha-js).
+
+## Try without writing code
+
+- Interactive playground (Swagger UI): https://lab.flashalpha.com/swagger
+- Sign up for an API key: https://flashalpha.com
+
+## Tiers
+
+FlashAlpha has four tiers — every endpoint declares its minimum tier:
+
+- **Free**: public endpoints (`health`, `tickers`, `stockQuote`,
+  `surface`, `gex`, `dex`, `vex`, `chex`, `greeks`, `iv`, `account`).
+- **Basic+**: adds `maxPain`.
+- **Growth+**: adds `exposureSummary`, `exposureLevels`, `narrative`,
+  `zeroDte`, `exposureHistory`, `optionQuote`, `volatility`, `kelly`,
+  `screener`.
+- **Alpha+**: adds `vrp`, `advVolatility` (SVI calibration, variance
+  surface, arbitrage detection).
+
+Pricing and tier comparison: https://flashalpha.com.
+
+## Companion SDKs
+
+- `flashalpha-historical` — point-in-time replay of every analytic
+  back to 2018-04-16, same response shapes, with built-in backtester.
+- Python, .NET, Java, Go SDKs at https://github.com/FlashAlpha-lab.
