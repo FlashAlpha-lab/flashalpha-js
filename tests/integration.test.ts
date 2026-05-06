@@ -516,6 +516,97 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     }
   });
 
+  itest('maxPain — every field declared in MaxPainResponse interface is exercised', async () => {
+    // 100% field-coverage discipline: every leaf field in the published
+    // MaxPainResponse interface must be referenced here.
+    const r = (await fa!.maxPain('SPY')) as {
+      symbol: string;
+      underlying_price: number;
+      as_of: string;
+      max_pain_strike: number;
+      distance: { absolute: number; percent: number; direction: string };
+      signal: string;
+      expiration: string;
+      put_call_oi_ratio: number;
+      pain_curve: Array<{ strike: number; call_pain: number; put_pain: number; total_pain: number }>;
+      oi_by_strike: Array<{
+        strike: number; call_oi: number; put_oi: number;
+        total_oi: number; call_volume: number; put_volume: number;
+      }>;
+      max_pain_by_expiration: Array<{
+        expiration: string; max_pain_strike: number; dte: number; total_oi: number;
+      }> | null;
+      dealer_alignment: {
+        alignment: string; description: string;
+        gamma_flip: number; call_wall: number; put_wall: number;
+      };
+      regime: string;
+      expected_move: { straddle_price: number; atm_iv: number; max_pain_within_expected_range: boolean };
+      pin_probability: number;
+    };
+
+    // ── top-level scalars ──
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.underlying_price).toBe('number');
+    expect(r.underlying_price).toBeGreaterThan(0);
+    expect(typeof r.as_of).toBe('string');
+    expect(typeof r.max_pain_strike).toBe('number');
+    expect(['bullish', 'bearish', 'neutral']).toContain(r.signal);
+    expect(typeof r.expiration).toBe('string');
+    expect(typeof r.put_call_oi_ratio).toBe('number');
+    expect(['positive_gamma', 'negative_gamma', 'neutral', 'undetermined']).toContain(r.regime);
+    expect(typeof r.pin_probability).toBe('number');
+    expect(r.pin_probability).toBeGreaterThanOrEqual(0);
+    expect(r.pin_probability).toBeLessThanOrEqual(100);
+
+    // ── distance ──
+    expect(typeof r.distance.absolute).toBe('number');
+    expect(typeof r.distance.percent).toBe('number');
+    expect(['above', 'below', 'at']).toContain(r.distance.direction);
+
+    // ── pain_curve[] ──
+    expect(Array.isArray(r.pain_curve)).toBe(true);
+    expect(r.pain_curve.length).toBeGreaterThan(0);
+    const pc = r.pain_curve[0];
+    expect(typeof pc.strike).toBe('number');
+    expect(typeof pc.call_pain).toBe('number');
+    expect(typeof pc.put_pain).toBe('number');
+    expect(typeof pc.total_pain).toBe('number');
+
+    // ── oi_by_strike[] ──
+    expect(Array.isArray(r.oi_by_strike)).toBe(true);
+    expect(r.oi_by_strike.length).toBeGreaterThan(0);
+    const oi = r.oi_by_strike[0];
+    expect(typeof oi.strike).toBe('number');
+    expect(typeof oi.call_oi).toBe('number');
+    expect(typeof oi.put_oi).toBe('number');
+    expect(typeof oi.total_oi).toBe('number');
+    expect(typeof oi.call_volume).toBe('number');
+    expect(typeof oi.put_volume).toBe('number');
+
+    // ── max_pain_by_expiration[] (no expiration filter on this call) ──
+    expect(r.max_pain_by_expiration).not.toBeNull();
+    expect(Array.isArray(r.max_pain_by_expiration)).toBe(true);
+    expect(r.max_pain_by_expiration!.length).toBeGreaterThan(0);
+    const mr = r.max_pain_by_expiration![0];
+    expect(typeof mr.expiration).toBe('string');
+    expect(typeof mr.max_pain_strike).toBe('number');
+    expect(typeof mr.dte).toBe('number');
+    expect(typeof mr.total_oi).toBe('number');
+
+    // ── dealer_alignment ──
+    expect(['converging', 'moderate', 'diverging', 'unknown']).toContain(r.dealer_alignment.alignment);
+    expect(typeof r.dealer_alignment.description).toBe('string');
+    expect(typeof r.dealer_alignment.gamma_flip).toBe('number');
+    expect(typeof r.dealer_alignment.call_wall).toBe('number');
+    expect(typeof r.dealer_alignment.put_wall).toBe('number');
+
+    // ── expected_move ──
+    expect(typeof r.expected_move.straddle_price).toBe('number');
+    expect(typeof r.expected_move.atm_iv).toBe('number');
+    expect(typeof r.expected_move.max_pain_within_expected_range).toBe('boolean');
+  });
+
   // ── Screener (Growth+) ────────────────────────────────────────────────────
 
   itest('screener() empty request returns meta + data for current tier', async () => {
