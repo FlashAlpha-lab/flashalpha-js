@@ -1795,3 +1795,266 @@ export interface StockQuoteResponse {
   /** ISO timestamp of the last quote tick. */
   lastUpdate?: string | null;
 }
+
+
+// ─── PricingIv (live only) ───────────────────────────────────────────────────
+//
+// Typed model for `GET /v1/pricing/iv` (Free+, live only).
+//
+// Inverts the BSM pricer to back out the implied volatility that reproduces a
+// given option mid. Pure deterministic math — no market data required, so
+// it's ideal for unit tests, parameter sweeps, and IV recalibration.
+
+/** Inputs echoed back into the response (after server-side validation). */
+export interface PricingIvInputs {
+  /** Underlying spot price. */
+  spot?: number | null;
+  /** Strike price. */
+  strike?: number | null;
+  /** Days to expiration. */
+  dte?: number | null;
+  /** Market option price the inversion is solving for. */
+  price?: number | null;
+  /** `'call'` or `'put'`. */
+  type?: 'call' | 'put' | string | null;
+  /** Risk-free rate as a decimal (e.g. 0.05 = 5%). */
+  risk_free_rate?: number | null;
+  /** Continuous dividend yield as a decimal. */
+  dividend_yield?: number | null;
+}
+
+/**
+ * Implied volatility from `GET /v1/pricing/iv` (Free+, live only).
+ *
+ * Solves the BSM pricer for the volatility that reproduces `inputs.price`.
+ * `implied_volatility` is the decimal form (e.g. 0.20 = 20%);
+ * `implied_volatility_pct` is the same value in percent (e.g. 20.0).
+ */
+export interface PricingIvResponse {
+  /** Inputs echoed back into the response. */
+  inputs?: PricingIvInputs;
+  /** Implied volatility as a decimal (e.g. 0.20 = 20%). */
+  implied_volatility?: number;
+  /** Implied volatility in percent (e.g. 20.0). */
+  implied_volatility_pct?: number;
+}
+
+
+// ─── PricingKelly (live only) ────────────────────────────────────────────────
+//
+// Typed model for `GET /v1/pricing/kelly` (Growth+, live only).
+//
+// Optimal-bet-fraction sizing for a single option position, given a forward
+// drift (`mu`), realised vol estimate (`sigma`), and the current premium.
+// Returns the full Kelly fraction plus half- and quarter-Kelly variants for
+// risk-managed sizing, and a synthesis block with expected ROI, payoff,
+// probability of profit / ITM, max loss, breakeven, and expected growth rate.
+
+/** Inputs echoed back into the response (after server-side validation). */
+export interface PricingKellyInputs {
+  /** Underlying spot price. */
+  spot?: number | null;
+  /** Strike price. */
+  strike?: number | null;
+  /** Days to expiration. */
+  dte?: number | null;
+  /** Annualised volatility as a decimal (e.g. 0.20 = 20%). */
+  sigma?: number | null;
+  /** Premium paid for the option. */
+  premium?: number | null;
+  /** Forward drift as a decimal. */
+  mu?: number | null;
+  /** `'call'` or `'put'`. */
+  type?: 'call' | 'put' | string | null;
+  /** Risk-free rate as a decimal. */
+  risk_free_rate?: number | null;
+  /** Continuous dividend yield as a decimal. */
+  dividend_yield?: number | null;
+}
+
+/**
+ * Kelly sizing block — full Kelly fraction plus half- and quarter-Kelly
+ * variants for risk-managed sizing.
+ */
+export interface PricingKellySizing {
+  /** Optimal Kelly fraction as a decimal (e.g. 0.25 = bet 25% of bankroll). */
+  kelly_fraction?: number;
+  /** `kelly_fraction / 2`. */
+  half_kelly?: number;
+  /** `kelly_fraction / 4`. */
+  quarter_kelly?: number;
+  /** Kelly fraction in percent (e.g. 25.0). */
+  kelly_pct?: number;
+  /** Half Kelly in percent. */
+  half_kelly_pct?: number;
+}
+
+/**
+ * Kelly analysis block — expected ROI, payoff, win probabilities, max loss,
+ * breakeven, and expected growth rate at the optimal bet fraction.
+ */
+export interface PricingKellyAnalysis {
+  /** Expected return on investment as a decimal. */
+  expected_roi?: number;
+  /** Expected ROI in percent. */
+  expected_roi_pct?: number;
+  /** Expected payoff in dollars per contract. */
+  expected_payoff?: number;
+  /** Probability of finishing the trade profitable (decimal). */
+  probability_of_profit?: number;
+  /** Probability of profit in percent. */
+  probability_of_profit_pct?: number;
+  /** Probability of finishing in-the-money (decimal). */
+  probability_itm?: number;
+  /** Probability ITM in percent. */
+  probability_itm_pct?: number;
+  /** Max loss in dollars per contract. */
+  max_loss?: number;
+  /** Breakeven price of the underlying at expiry. */
+  breakeven?: number;
+  /** Expected log-growth rate at the optimal bet fraction. */
+  expected_growth_rate?: number;
+}
+
+/**
+ * Kelly criterion sizing from `GET /v1/pricing/kelly` (Growth+, live only).
+ *
+ * Returns the optimal bet fraction (with half- and quarter-Kelly variants),
+ * the analytical block (expected ROI, payoff, win probabilities, max loss,
+ * breakeven, expected growth rate), and a plain-English `recommendation`.
+ */
+export interface PricingKellyResponse {
+  /** Inputs echoed back into the response. */
+  inputs?: PricingKellyInputs;
+  /** Kelly sizing block. */
+  sizing?: PricingKellySizing;
+  /** Analysis block. */
+  analysis?: PricingKellyAnalysis;
+  /** Plain-English sizing recommendation. Safe to surface verbatim. */
+  recommendation?: string;
+}
+
+
+// ─── Account / Tickers / Symbols / OptionsMeta / Health / Screener ───────────
+//
+// Typed models for the small remaining endpoints — quota lookup, reference
+// data (tickers / symbols / options metadata), the health probe, and the
+// screener envelope.
+
+/**
+ * Account info and quota from `GET /v1/account`.
+ *
+ * Returns user identity, plan tier, and current daily quota state.
+ */
+export interface AccountResponse {
+  /** Stable internal user identifier. */
+  user_id?: string;
+  /** Account email. */
+  email?: string;
+  /** Plan tier ("free", "growth", "alpha", etc.). */
+  plan?: string;
+  /** Daily request limit on the current plan. */
+  daily_limit?: number;
+  /** Requests used so far today. */
+  usage_today?: number;
+  /** Requests remaining today (`daily_limit - usage_today`). */
+  remaining?: number;
+  /** ISO timestamp at which `usage_today` resets. */
+  resets_at?: string;
+}
+
+/**
+ * Tickers list from `GET /v1/tickers`.
+ *
+ * `tickers` is the alphabetically-sorted list of all available symbols;
+ * `count` is `tickers.length`.
+ */
+export interface TickersResponse {
+  tickers?: string[];
+  count?: number;
+}
+
+/**
+ * Currently-queried symbols from `GET /v1/symbols`.
+ *
+ * `symbols` is the list of symbols with live data updating in the
+ * in-memory store; `note` is a server-side annotation; `last_updated`
+ * is the ISO timestamp of the most recent refresh.
+ */
+export interface SymbolsResponse {
+  symbols?: string[];
+  count?: number;
+  note?: string;
+  last_updated?: string;
+}
+
+/** One row of the `expirations` array on `OptionsMetaResponse`. */
+export interface OptionsMetaExpiration {
+  /** Expiry date (YYYY-MM-DD). */
+  expiration?: string;
+  /** Strikes listed at this expiry, ascending. */
+  strikes?: number[];
+}
+
+/**
+ * Option chain metadata from `GET /v1/options/{ticker}`.
+ *
+ * Lean metadata payload — just the expirations and the strikes listed at
+ * each. Use this to build expiration / strike pickers without fetching
+ * the full option chain.
+ */
+export interface OptionsMetaResponse {
+  /** Echoed from the request path (e.g. "SPY"). */
+  symbol?: string;
+  /** Per-expiry strike lists. */
+  expirations?: OptionsMetaExpiration[];
+  /** Number of expirations returned. */
+  expiration_count?: number;
+  /** Total contract count across all expirations and strikes. */
+  total_contracts?: number;
+}
+
+/**
+ * Health-check response from `GET /health` (public).
+ *
+ * Tiny payload — just a `status` string. Useful for readiness probes
+ * and end-to-end smoke tests.
+ */
+export interface HealthResponse {
+  status?: string;
+}
+
+/**
+ * Meta block on the screener response. Identifies the universe size,
+ * tier the request was served under, the as-of timestamp, and the
+ * pagination state.
+ */
+export interface ScreenerMeta {
+  /** Total rows matching the filter, before pagination. */
+  total_count?: number;
+  /** Rows actually returned in this response (after `limit`/`offset`). */
+  returned_count?: number;
+  /** Total symbols in the underlying universe at the current tier. */
+  universe_size?: number;
+  /** Pagination offset that was applied. */
+  offset?: number;
+  /** Pagination limit that was applied. */
+  limit?: number;
+  /** Plan tier the request was served under ("growth", "alpha", etc.). */
+  tier?: string;
+  /** ET wall-clock timestamp of the screener snapshot. */
+  as_of?: string;
+}
+
+/**
+ * Screener response from `POST /v1/screener` (Growth+).
+ *
+ * `meta` carries the universe size, tier, as-of, and pagination state.
+ * `data` is an array of plain rows whose shape depends entirely on the
+ * `select` field of the request — leave it untyped (`Record<string, unknown>[]`)
+ * and cast at the call site.
+ */
+export interface ScreenerResponse {
+  meta?: ScreenerMeta;
+  data?: Record<string, unknown>[];
+}

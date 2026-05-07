@@ -154,4 +154,21 @@ export type {
   OptionQuoteResponse,
   // ── StockQuote (live only) ──
   StockQuoteResponse,
+  // ── PricingIv (live only) ──
+  PricingIvResponse,
+  PricingIvInputs,
+  // ── PricingKelly (live only) ──
+  PricingKellyResponse,
+  PricingKellyInputs,
+  PricingKellySizing,
+  PricingKellyAnalysis,
+  // ── Account / Reference Data / Health / Screener ──
+  AccountResponse,
+  TickersResponse,
+  SymbolsResponse,
+  OptionsMetaResponse,
+  OptionsMetaExpiration,
+  HealthResponse,
+  ScreenerResponse,
+  ScreenerMeta,
 } from './types';

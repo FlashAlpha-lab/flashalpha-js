@@ -1295,4 +1295,408 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       expect(r.additional).toHaveProperty(k);
     }
   });
+
+  // ── rc.9 POCO field-walk coverage ─────────────────────────────────────────
+  // For each interface added in rc.9, walk every documented top-level (and
+  // selected nested) field and assert it is present on the response.
+  // TypeScript interfaces are erased at runtime, so the field list is
+  // hand-mirrored from src/types.ts — keep these in sync if the interface
+  // shape changes.
+
+  itest('volatility — every field declared in VolatilityResponse must be referenced', async () => {
+    const r = await fa!.volatility('SPY') as Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      market_open: boolean | null;
+      realized_vol: Record<string, unknown>;
+      atm_iv: number | null;
+      iv_rv_spreads: Record<string, unknown>;
+      skew_profiles: unknown[];
+      term_structure: Record<string, unknown>;
+      iv_dispersion: Record<string, unknown>;
+      gex_by_dte: unknown[];
+      theta_by_dte: unknown[];
+      put_call_profile: Record<string, unknown> & {
+        by_expiry: unknown[];
+        by_moneyness: Record<string, unknown>;
+      };
+      oi_concentration: Record<string, unknown>;
+      hedging_scenarios: unknown[];
+      liquidity: Record<string, unknown>;
+    };
+
+    // ── top-level (16 keys) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'market_open',
+                     'realized_vol', 'atm_iv', 'iv_rv_spreads',
+                     'skew_profiles', 'term_structure', 'iv_dispersion',
+                     'gex_by_dte', 'theta_by_dte', 'put_call_profile',
+                     'oi_concentration', 'hedging_scenarios', 'liquidity']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.as_of).toBe('string');
+
+    // ── realized_vol (5 horizons) ──
+    for (const k of ['rv_5d', 'rv_10d', 'rv_20d', 'rv_30d', 'rv_60d']) {
+      expect(r.realized_vol).toHaveProperty(k);
+    }
+
+    // ── iv_rv_spreads (4 horizons + assessment) ──
+    for (const k of ['vrp_5d', 'vrp_10d', 'vrp_20d', 'vrp_30d', 'assessment']) {
+      expect(r.iv_rv_spreads).toHaveProperty(k);
+    }
+
+    // ── skew_profiles[] (per-expiry) ──
+    expect(Array.isArray(r.skew_profiles)).toBe(true);
+    if (r.skew_profiles.length > 0) {
+      const sp = r.skew_profiles[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'days_to_expiry', 'put_10d_iv', 'put_25d_iv',
+                       'atm_iv', 'call_25d_iv', 'call_10d_iv', 'skew_25d',
+                       'smile_ratio', 'tail_convexity']) {
+        expect(sp).toHaveProperty(k);
+      }
+    }
+
+    // ── term_structure (3 fields) ──
+    for (const k of ['near_slope_pct', 'far_slope_pct', 'state']) {
+      expect(r.term_structure).toHaveProperty(k);
+    }
+
+    // ── iv_dispersion (2 fields) ──
+    for (const k of ['cross_expiry', 'cross_strike']) {
+      expect(r.iv_dispersion).toHaveProperty(k);
+    }
+
+    // ── gex_by_dte[] (4 fields per bucket) ──
+    expect(Array.isArray(r.gex_by_dte)).toBe(true);
+    if (r.gex_by_dte.length > 0) {
+      const b = r.gex_by_dte[0] as Record<string, unknown>;
+      for (const k of ['bucket', 'net_gex', 'pct_of_total', 'contract_count']) {
+        expect(b).toHaveProperty(k);
+      }
+    }
+
+    // ── theta_by_dte[] (3 fields per bucket) ──
+    expect(Array.isArray(r.theta_by_dte)).toBe(true);
+    if (r.theta_by_dte.length > 0) {
+      const b = r.theta_by_dte[0] as Record<string, unknown>;
+      for (const k of ['bucket', 'net_theta', 'contract_count']) {
+        expect(b).toHaveProperty(k);
+      }
+    }
+
+    // ── put_call_profile (by_expiry[] + by_moneyness) ──
+    expect(Array.isArray(r.put_call_profile.by_expiry)).toBe(true);
+    if (r.put_call_profile.by_expiry.length > 0) {
+      const e = r.put_call_profile.by_expiry[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'call_oi', 'put_oi', 'pc_ratio_oi',
+                       'call_volume', 'put_volume', 'pc_ratio_volume']) {
+        expect(e).toHaveProperty(k);
+      }
+    }
+    for (const k of ['otm_call_oi', 'atm_call_oi', 'itm_call_oi',
+                     'otm_put_oi', 'atm_put_oi', 'itm_put_oi']) {
+      expect(r.put_call_profile.by_moneyness).toHaveProperty(k);
+    }
+
+    // ── oi_concentration (4 fields) ──
+    for (const k of ['top_3_pct', 'top_5_pct', 'top_10_pct', 'herfindahl']) {
+      expect(r.oi_concentration).toHaveProperty(k);
+    }
+
+    // ── hedging_scenarios[] (4 fields per row) ──
+    expect(Array.isArray(r.hedging_scenarios)).toBe(true);
+    if (r.hedging_scenarios.length > 0) {
+      const h = r.hedging_scenarios[0] as Record<string, unknown>;
+      for (const k of ['move_pct', 'dealer_shares', 'direction', 'notional_usd']) {
+        expect(h).toHaveProperty(k);
+      }
+    }
+
+    // ── liquidity (4 fields) ──
+    for (const k of ['atm_avg_spread_pct', 'wing_avg_spread_pct',
+                     'atm_contracts', 'wing_contracts']) {
+      expect(r.liquidity).toHaveProperty(k);
+    }
+  });
+
+  itest('advVolatility — every field declared in AdvVolatilityResponse must be referenced (Alpha-tier)', async () => {
+    let r: Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      market_open: boolean | null;
+      svi_parameters: unknown[];
+      forward_prices: unknown[];
+      total_variance_surface: Record<string, unknown>;
+      arbitrage_flags: unknown[];
+      variance_swap_fair_values: unknown[];
+      greeks_surfaces: Record<string, unknown> & {
+        vanna: Record<string, unknown>;
+        charm: Record<string, unknown>;
+        volga: Record<string, unknown>;
+        speed: Record<string, unknown>;
+      };
+    };
+    try {
+      r = await fa!.advVolatility('SPY') as typeof r;
+    } catch (err) {
+      // Skip if tier-restricted — adv_volatility requires Alpha+
+      if (err instanceof FlashAlphaError && err.statusCode === 403) {
+        return;
+      }
+      throw err;
+    }
+
+    // ── top-level (10 keys) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'market_open',
+                     'svi_parameters', 'forward_prices',
+                     'total_variance_surface', 'arbitrage_flags',
+                     'variance_swap_fair_values', 'greeks_surfaces']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.as_of).toBe('string');
+
+    // ── svi_parameters[] (10 fields per row) ──
+    expect(Array.isArray(r.svi_parameters)).toBe(true);
+    if (r.svi_parameters.length > 0) {
+      const s = r.svi_parameters[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'days_to_expiry', 'forward', 'a', 'b',
+                       'rho', 'm', 'sigma', 'atm_total_variance', 'atm_iv']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+
+    // ── forward_prices[] (5 fields per row) ──
+    expect(Array.isArray(r.forward_prices)).toBe(true);
+    if (r.forward_prices.length > 0) {
+      const fp = r.forward_prices[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'days_to_expiry', 'forward', 'spot', 'basis_pct']) {
+        expect(fp).toHaveProperty(k);
+      }
+    }
+
+    // ── total_variance_surface (5 fields) ──
+    for (const k of ['moneyness', 'expiries', 'tenors', 'total_variance', 'implied_vol']) {
+      expect(r.total_variance_surface).toHaveProperty(k);
+    }
+
+    // ── arbitrage_flags[] (4 fields per row) ──
+    expect(Array.isArray(r.arbitrage_flags)).toBe(true);
+    if (r.arbitrage_flags.length > 0) {
+      const a = r.arbitrage_flags[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'type', 'strike_or_k', 'description']) {
+        expect(a).toHaveProperty(k);
+      }
+    }
+
+    // ── variance_swap_fair_values[] (5 fields per row) ──
+    expect(Array.isArray(r.variance_swap_fair_values)).toBe(true);
+    if (r.variance_swap_fair_values.length > 0) {
+      const v = r.variance_swap_fair_values[0] as Record<string, unknown>;
+      for (const k of ['expiry', 'days_to_expiry', 'fair_variance',
+                       'fair_vol', 'atm_iv', 'convexity_adjustment']) {
+        expect(v).toHaveProperty(k);
+      }
+    }
+
+    // ── greeks_surfaces (4 surfaces × 3 axes) ──
+    for (const surface of ['vanna', 'charm', 'volga', 'speed'] as const) {
+      expect(r.greeks_surfaces).toHaveProperty(surface);
+      for (const k of ['strikes', 'expiries', 'values']) {
+        expect(r.greeks_surfaces[surface]).toHaveProperty(k);
+      }
+    }
+  });
+
+  itest('surface — every field declared in SurfaceResponse must be referenced', async () => {
+    const r = await fa!.surface('SPY') as Record<string, unknown> & {
+      symbol: string;
+      spot: number | null;
+      as_of: string;
+      grid_size: number;
+      tenors: number[];
+      moneyness: number[];
+      iv: number[][];
+      slices_used: string[];
+    };
+
+    // ── all 8 fields ──
+    for (const k of ['symbol', 'spot', 'as_of', 'grid_size',
+                     'tenors', 'moneyness', 'iv', 'slices_used']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+    expect(typeof r.as_of).toBe('string');
+    expect(typeof r.grid_size).toBe('number');
+    expect(Array.isArray(r.tenors)).toBe(true);
+    expect(Array.isArray(r.moneyness)).toBe(true);
+    expect(Array.isArray(r.iv)).toBe(true);
+    expect(Array.isArray(r.slices_used)).toBe(true);
+  });
+
+  itest('gex — every field declared in GexResponse must be referenced', async () => {
+    const r = await fa!.gex('SPY') as Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      gamma_flip: number | null;
+      net_gex: number | null;
+      net_gex_label: string | null;
+      strikes: unknown[];
+    };
+
+    // ── top-level (7 fields) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'gamma_flip',
+                     'net_gex', 'net_gex_label', 'strikes']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+
+    // ── strikes[] (10 fields per row) ──
+    expect(Array.isArray(r.strikes)).toBe(true);
+    if (r.strikes.length > 0) {
+      const s = r.strikes[0] as Record<string, unknown>;
+      for (const k of ['strike', 'call_gex', 'put_gex', 'net_gex',
+                       'call_oi', 'put_oi', 'call_volume', 'put_volume',
+                       'call_oi_change', 'put_oi_change']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+  });
+
+  itest('dex — every field declared in DexResponse must be referenced', async () => {
+    const r = await fa!.dex('SPY') as Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      net_dex: number | null;
+      strikes: unknown[];
+    };
+
+    // ── top-level (5 fields) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'net_dex', 'strikes']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+
+    // ── strikes[] (4 fields per row) ──
+    expect(Array.isArray(r.strikes)).toBe(true);
+    if (r.strikes.length > 0) {
+      const s = r.strikes[0] as Record<string, unknown>;
+      for (const k of ['strike', 'call_dex', 'put_dex', 'net_dex']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+  });
+
+  itest('vex — every field declared in VexResponse must be referenced', async () => {
+    const r = await fa!.vex('SPY') as Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      net_vex: number | null;
+      vex_interpretation: string | null;
+      strikes: unknown[];
+    };
+
+    // ── top-level (6 fields) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'net_vex',
+                     'vex_interpretation', 'strikes']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+
+    // ── strikes[] (4 fields per row) ──
+    expect(Array.isArray(r.strikes)).toBe(true);
+    if (r.strikes.length > 0) {
+      const s = r.strikes[0] as Record<string, unknown>;
+      for (const k of ['strike', 'call_vex', 'put_vex', 'net_vex']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+  });
+
+  itest('chex — every field declared in ChexResponse must be referenced', async () => {
+    const r = await fa!.chex('SPY') as Record<string, unknown> & {
+      symbol: string;
+      underlying_price: number | null;
+      as_of: string;
+      net_chex: number | null;
+      chex_interpretation: string | null;
+      strikes: unknown[];
+    };
+
+    // ── top-level (6 fields) ──
+    for (const k of ['symbol', 'underlying_price', 'as_of', 'net_chex',
+                     'chex_interpretation', 'strikes']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.symbol).toBe('SPY');
+
+    // ── strikes[] (4 fields per row) ──
+    expect(Array.isArray(r.strikes)).toBe(true);
+    if (r.strikes.length > 0) {
+      const s = r.strikes[0] as Record<string, unknown>;
+      for (const k of ['strike', 'call_chex', 'put_chex', 'net_chex']) {
+        expect(s).toHaveProperty(k);
+      }
+    }
+  });
+
+  itest('optionQuote — every field declared in OptionQuoteResponse must be referenced (live only)', async () => {
+    // Pick a near-the-money expiry/strike from the option chain metadata.
+    let q: Record<string, unknown>;
+    try {
+      const meta = await fa!.options('SPY') as {
+        expirations?: Array<{ expiration?: string; strikes?: number[] }>;
+      };
+      const first = meta.expirations?.[0];
+      if (!first || !first.expiration || !first.strikes || first.strikes.length === 0) {
+        // No chain to query — accept skip by returning early.
+        return;
+      }
+      const expiry = first.expiration;
+      const mid = first.strikes[Math.floor(first.strikes.length / 2)]!;
+      const result = await fa!.optionQuote('SPY', { expiry, strike: mid, type: 'C' });
+      // Could be a single object or an array; we want a single object here.
+      q = (Array.isArray(result) ? result[0] : result) as Record<string, unknown>;
+    } catch (err) {
+      // Tier-restricted (Growth+) or no contract — accept either as skip.
+      if (err instanceof FlashAlphaError && (err.statusCode === 403 || err.statusCode === 404)) {
+        return;
+      }
+      throw err;
+    }
+    if (!q) return;
+
+    // ── all documented OptionQuoteResponse fields ──
+    for (const k of ['type', 'expiry', 'strike', 'bid', 'ask', 'mid',
+                     'bidSize', 'askSize', 'lastUpdate',
+                     'implied_vol', 'iv_bid', 'iv_ask',
+                     'delta', 'gamma', 'theta', 'vega', 'rho', 'vanna', 'charm',
+                     'svi_vol', 'svi_vol_gated',
+                     'open_interest', 'volume']) {
+      expect(q).toHaveProperty(k);
+    }
+  });
+
+  itest('stockQuote — every field declared in StockQuoteResponse must be referenced (live only)', async () => {
+    const r = await fa!.stockQuote('SPY') as Record<string, unknown> & {
+      ticker: string;
+      bid: number | null;
+      ask: number | null;
+      mid: number | null;
+      lastPrice: number | null;
+      lastUpdate: string | null;
+    };
+
+    // ── all 6 documented fields ──
+    for (const k of ['ticker', 'bid', 'ask', 'mid', 'lastPrice', 'lastUpdate']) {
+      expect(r).toHaveProperty(k);
+    }
+    expect(r.ticker).toBe('SPY');
+  });
 });

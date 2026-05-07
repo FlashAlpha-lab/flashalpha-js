@@ -16,19 +16,27 @@ import {
   TierRestrictedError,
 } from './errors';
 import type {
+  AccountResponse,
   AdvVolatilityResponse,
   ChexResponse,
   DexResponse,
   ExposureLevelsResponse,
   ExposureSummaryResponse,
   GexResponse,
+  HealthResponse,
   MaxPainResponse,
   NarrativeResponse,
   OptionQuoteResponse,
+  OptionsMetaResponse,
   PricingGreeksResponse,
+  PricingIvResponse,
+  PricingKellyResponse,
+  ScreenerResponse,
   StockQuoteResponse,
   StockSummaryResponse,
   SurfaceResponse,
+  SymbolsResponse,
+  TickersResponse,
   VexResponse,
   VolatilityResponse,
   VrpResponse,
@@ -458,7 +466,7 @@ export class FlashAlpha {
   }
 
   /** Implied volatility from market price. */
-  async iv(options: IvOptions): Promise<unknown> {
+  async iv(options: IvOptions): Promise<PricingIvResponse> {
     const params: Record<string, string | number | undefined> = {
       spot: options.spot,
       strike: options.strike,
@@ -468,11 +476,11 @@ export class FlashAlpha {
     };
     if (options.r !== undefined) params['r'] = options.r;
     if (options.q !== undefined) params['q'] = options.q;
-    return this._get('/v1/pricing/iv', params);
+    return this._get('/v1/pricing/iv', params) as Promise<PricingIvResponse>;
   }
 
   /** Kelly criterion optimal position sizing. Requires Growth+. */
-  async kelly(options: KellyOptions): Promise<unknown> {
+  async kelly(options: KellyOptions): Promise<PricingKellyResponse> {
     const params: Record<string, string | number | undefined> = {
       spot: options.spot,
       strike: options.strike,
@@ -484,7 +492,7 @@ export class FlashAlpha {
     };
     if (options.r !== undefined) params['r'] = options.r;
     if (options.q !== undefined) params['q'] = options.q;
-    return this._get('/v1/pricing/kelly', params);
+    return this._get('/v1/pricing/kelly', params) as Promise<PricingKellyResponse>;
   }
 
   // ── Volatility Analytics ──────────────────────────────────────────────────
@@ -502,18 +510,18 @@ export class FlashAlpha {
   // ── Reference Data ────────────────────────────────────────────────────────
 
   /** All available stock tickers. */
-  async tickers(): Promise<unknown> {
-    return this._get('/v1/tickers');
+  async tickers(): Promise<TickersResponse> {
+    return this._get('/v1/tickers') as Promise<TickersResponse>;
   }
 
   /** Option chain metadata (expirations + strikes). */
-  async options(ticker: string): Promise<unknown> {
-    return this._get(`/v1/options/${_seg(ticker)}`);
+  async options(ticker: string): Promise<OptionsMetaResponse> {
+    return this._get(`/v1/options/${_seg(ticker)}`) as Promise<OptionsMetaResponse>;
   }
 
   /** Currently queried symbols with live data. */
-  async symbols(): Promise<unknown> {
-    return this._get('/v1/symbols');
+  async symbols(): Promise<SymbolsResponse> {
+    return this._get('/v1/symbols') as Promise<SymbolsResponse>;
   }
 
   // ── VRP (Variance Risk Premium) ───────────────────────────────────────────
@@ -577,17 +585,17 @@ export class FlashAlpha {
    *   select: ['symbol', 'price', 'harvest_score', 'dealer_flow_risk'],
    * });
    */
-  async screener(options: ScreenerOptions = {}): Promise<unknown> {
-    return this._post('/v1/screener', options);
+  async screener(options: ScreenerOptions = {}): Promise<ScreenerResponse> {
+    return this._post('/v1/screener', options) as Promise<ScreenerResponse>;
   }
 
   /** Account info and quota. */
-  async account(): Promise<unknown> {
-    return this._get('/v1/account');
+  async account(): Promise<AccountResponse> {
+    return this._get('/v1/account') as Promise<AccountResponse>;
   }
 
   /** Health check (public, no auth required). */
-  async health(): Promise<unknown> {
-    return this._get('/health');
+  async health(): Promise<HealthResponse> {
+    return this._get('/health') as Promise<HealthResponse>;
   }
 }
