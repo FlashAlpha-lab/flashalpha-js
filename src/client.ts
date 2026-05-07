@@ -15,7 +15,16 @@ import {
   ServerError,
   TierRestrictedError,
 } from './errors';
-import type { ZeroDteResponse } from './types';
+import type {
+  ExposureLevelsResponse,
+  ExposureSummaryResponse,
+  MaxPainResponse,
+  NarrativeResponse,
+  PricingGreeksResponse,
+  StockSummaryResponse,
+  VrpResponse,
+  ZeroDteResponse,
+} from './types';
 
 const BASE_URL = 'https://lab.flashalpha.com';
 const DEFAULT_TIMEOUT = 30_000; // milliseconds
@@ -309,8 +318,8 @@ export class FlashAlpha {
   }
 
   /** Comprehensive stock summary (price, vol, exposure, macro). */
-  async stockSummary(symbol: string): Promise<unknown> {
-    return this._get(`/v1/stock/${_seg(symbol)}/summary`);
+  async stockSummary(symbol: string): Promise<StockSummaryResponse> {
+    return this._get(`/v1/stock/${_seg(symbol)}/summary`) as Promise<StockSummaryResponse>;
   }
 
   // ── Historical ────────────────────────────────────────────────────────────
@@ -364,18 +373,18 @@ export class FlashAlpha {
   }
 
   /** Full exposure summary (GEX/DEX/VEX/CHEX + hedging). Requires Growth+. */
-  async exposureSummary(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/summary/${_seg(symbol)}`);
+  async exposureSummary(symbol: string): Promise<ExposureSummaryResponse> {
+    return this._get(`/v1/exposure/summary/${_seg(symbol)}`) as Promise<ExposureSummaryResponse>;
   }
 
   /** Key support/resistance levels from options exposure. */
-  async exposureLevels(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/levels/${_seg(symbol)}`);
+  async exposureLevels(symbol: string): Promise<ExposureLevelsResponse> {
+    return this._get(`/v1/exposure/levels/${_seg(symbol)}`) as Promise<ExposureLevelsResponse>;
   }
 
   /** Verbal narrative analysis of exposure. Requires Growth+. */
-  async narrative(symbol: string): Promise<unknown> {
-    return this._get(`/v1/exposure/narrative/${_seg(symbol)}`);
+  async narrative(symbol: string): Promise<NarrativeResponse> {
+    return this._get(`/v1/exposure/narrative/${_seg(symbol)}`) as Promise<NarrativeResponse>;
   }
 
   /**
@@ -402,7 +411,7 @@ export class FlashAlpha {
   // ── Pricing & Sizing ──────────────────────────────────────────────────────
 
   /** Full BSM greeks (first, second, third order). */
-  async greeks(options: GreeksOptions): Promise<unknown> {
+  async greeks(options: GreeksOptions): Promise<PricingGreeksResponse> {
     const params: Record<string, string | number | undefined> = {
       spot: options.spot,
       strike: options.strike,
@@ -412,7 +421,7 @@ export class FlashAlpha {
     };
     if (options.r !== undefined) params['r'] = options.r;
     if (options.q !== undefined) params['q'] = options.q;
-    return this._get('/v1/pricing/greeks', params);
+    return this._get('/v1/pricing/greeks', params) as Promise<PricingGreeksResponse>;
   }
 
   /** Implied volatility from market price. */
@@ -500,17 +509,17 @@ export class FlashAlpha {
    * const r = await fa.vrp('SPY');
    * console.log(r.vrp.z_score, r.directional.downside_vrp);
    */
-  async vrp(symbol: string): Promise<unknown> {
-    return this._get(`/v1/vrp/${_seg(symbol)}`);
+  async vrp(symbol: string): Promise<VrpResponse> {
+    return this._get(`/v1/vrp/${_seg(symbol)}`) as Promise<VrpResponse>;
   }
 
   // ── Account & System ──────────────────────────────────────────────────────
 
   /** Max pain analysis with dealer alignment, pain curve, OI breakdown,
    * expected move, pin probability, multi-expiry calendar. Growth+. */
-  async maxPain(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
+  async maxPain(symbol: string, options: ExpirationOptions = {}): Promise<MaxPainResponse> {
     return this._get(`/v1/maxpain/${_seg(symbol)}`, options.expiration !== undefined
-      ? { expiration: options.expiration } : undefined);
+      ? { expiration: options.expiration } : undefined) as Promise<MaxPainResponse>;
   }
 
   /**
