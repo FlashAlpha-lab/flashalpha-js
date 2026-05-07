@@ -380,7 +380,7 @@ export interface VrpVannaConditioned {
  * undefined; use `response.regime.net_gex`.
  */
 export interface VrpRegime {
-  /** "positive_gamma" | "negative_gamma" | "neutral" | "undetermined". */
+  /** "positive_gamma" | "negative_gamma" | "unknown". */
   gamma?: string | null;
   /** "harvestable" | "selling_too_cheap" | etc. `null` when warmup is short. */
   vrp_regime?: string | null;
@@ -964,7 +964,11 @@ export interface NarrativeData {
   call_wall?: number | null;
   /** Highest-absolute-put-GEX strike. */
   put_wall?: number | null;
-  regime?: 'positive_gamma' | 'negative_gamma' | 'neutral' | 'undetermined' | null;
+  /**
+   * Confirmed values from server source: `positive_gamma | negative_gamma | unknown`.
+   * Same classifier as `exposure_summary.regime`.
+   */
+  regime?: 'positive_gamma' | 'negative_gamma' | 'unknown' | null;
   /** 0DTE share of total chain absolute GEX (0-100). */
   zero_dte_pct?: number | null;
   top_oi_changes?: NarrativeOiChange[];
