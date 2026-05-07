@@ -1953,12 +1953,19 @@ export interface AccountResponse {
   email?: string;
   /** Plan tier ("free", "growth", "alpha", etc.). */
   plan?: string;
-  /** Daily request limit on the current plan. */
-  daily_limit?: number;
-  /** Requests used so far today. */
+  /**
+   * Daily request limit on the current plan. **String, not number** —
+   * numeric (e.g. `"1000"`) on bounded plans, literal `"unlimited"` on
+   * Alpha / Enterprise tiers.
+   */
+  daily_limit?: string;
+  /** Requests used so far today (true integer). */
   usage_today?: number;
-  /** Requests remaining today (`daily_limit - usage_today`). */
-  remaining?: number;
+  /**
+   * Requests remaining today. Numeric string on bounded plans;
+   * `"unlimited"` on uncapped tiers — same semantics as `daily_limit`.
+   */
+  remaining?: string;
   /** ISO timestamp at which `usage_today` resets. */
   resets_at?: string;
 }
