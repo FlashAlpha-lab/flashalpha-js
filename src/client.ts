@@ -16,12 +16,21 @@ import {
   TierRestrictedError,
 } from './errors';
 import type {
+  AdvVolatilityResponse,
+  ChexResponse,
+  DexResponse,
   ExposureLevelsResponse,
   ExposureSummaryResponse,
+  GexResponse,
   MaxPainResponse,
   NarrativeResponse,
+  OptionQuoteResponse,
   PricingGreeksResponse,
+  StockQuoteResponse,
   StockSummaryResponse,
+  SurfaceResponse,
+  VexResponse,
+  VolatilityResponse,
   VrpResponse,
   ZeroDteResponse,
 } from './types';
@@ -299,22 +308,34 @@ export class FlashAlpha {
   // ── Market Data ───────────────────────────────────────────────────────────
 
   /** Live stock quote (bid/ask/mid/last). */
-  async stockQuote(ticker: string): Promise<unknown> {
-    return this._get(`/stockquote/${_seg(ticker)}`);
+  async stockQuote(ticker: string): Promise<StockQuoteResponse> {
+    return this._get(`/stockquote/${_seg(ticker)}`) as Promise<StockQuoteResponse>;
   }
 
-  /** Option quotes with greeks. Requires Growth+. */
-  async optionQuote(ticker: string, options: OptionQuoteOptions = {}): Promise<unknown> {
+  /**
+   * Option quotes with greeks. Requires Growth+.
+   *
+   * Returns a single `OptionQuoteResponse` when `expiry`, `strike`, and `type`
+   * are all specified; otherwise returns an array. Note the camelCase fields
+   * (`bidSize`, `askSize`, `lastUpdate`) — preserved from the upstream feed.
+   */
+  async optionQuote(
+    ticker: string,
+    options: OptionQuoteOptions = {},
+  ): Promise<OptionQuoteResponse | OptionQuoteResponse[]> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiry) params['expiry'] = options.expiry;
     if (options.strike !== undefined) params['strike'] = options.strike;
     if (options.type) params['type'] = options.type;
-    return this._get(`/optionquote/${_seg(ticker)}`, Object.keys(params).length ? params : undefined);
+    return this._get(
+      `/optionquote/${_seg(ticker)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<OptionQuoteResponse | OptionQuoteResponse[]>;
   }
 
   /** Volatility surface grid (public, no auth required). */
-  async surface(symbol: string): Promise<unknown> {
-    return this._get(`/v1/surface/${_seg(symbol)}`);
+  async surface(symbol: string): Promise<SurfaceResponse> {
+    return this._get(`/v1/surface/${_seg(symbol)}`) as Promise<SurfaceResponse>;
   }
 
   /** Comprehensive stock summary (price, vol, exposure, macro). */
@@ -344,32 +365,44 @@ export class FlashAlpha {
   // ── Exposure Analytics ────────────────────────────────────────────────────
 
   /** Gamma exposure by strike. */
-  async gex(symbol: string, options: GexOptions = {}): Promise<unknown> {
+  async gex(symbol: string, options: GexOptions = {}): Promise<GexResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
     if (options.minOi !== undefined) params['min_oi'] = options.minOi;
-    return this._get(`/v1/exposure/gex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
+    return this._get(
+      `/v1/exposure/gex/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<GexResponse>;
   }
 
   /** Delta exposure by strike. */
-  async dex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
+  async dex(symbol: string, options: ExpirationOptions = {}): Promise<DexResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/dex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
+    return this._get(
+      `/v1/exposure/dex/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<DexResponse>;
   }
 
   /** Vanna exposure by strike. */
-  async vex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
+  async vex(symbol: string, options: ExpirationOptions = {}): Promise<VexResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/vex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
+    return this._get(
+      `/v1/exposure/vex/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<VexResponse>;
   }
 
   /** Charm exposure by strike. */
-  async chex(symbol: string, options: ExpirationOptions = {}): Promise<unknown> {
+  async chex(symbol: string, options: ExpirationOptions = {}): Promise<ChexResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.expiration) params['expiration'] = options.expiration;
-    return this._get(`/v1/exposure/chex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
+    return this._get(
+      `/v1/exposure/chex/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ChexResponse>;
   }
 
   /** Full exposure summary (GEX/DEX/VEX/CHEX + hedging). Requires Growth+. */
@@ -457,13 +490,13 @@ export class FlashAlpha {
   // ── Volatility Analytics ──────────────────────────────────────────────────
 
   /** Comprehensive volatility analysis. Requires Growth+. */
-  async volatility(symbol: string): Promise<unknown> {
-    return this._get(`/v1/volatility/${_seg(symbol)}`);
+  async volatility(symbol: string): Promise<VolatilityResponse> {
+    return this._get(`/v1/volatility/${_seg(symbol)}`) as Promise<VolatilityResponse>;
   }
 
   /** Advanced volatility analytics: SVI parameters, variance surface, arbitrage detection. Requires Alpha+. */
-  async advVolatility(symbol: string): Promise<unknown> {
-    return this._get(`/v1/adv_volatility/${_seg(symbol)}`);
+  async advVolatility(symbol: string): Promise<AdvVolatilityResponse> {
+    return this._get(`/v1/adv_volatility/${_seg(symbol)}`) as Promise<AdvVolatilityResponse>;
   }
 
   // ── Reference Data ────────────────────────────────────────────────────────

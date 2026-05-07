@@ -115,4 +115,43 @@ export type {
   PricingSecondOrder,
   PricingThirdOrder,
   PricingAdditional,
+  // ── Volatility ──
+  VolatilityResponse,
+  VolatilityRealizedVol,
+  VolatilityIvRvSpreads,
+  VolatilitySkewProfile,
+  VolatilityTermStructure,
+  VolatilityIvDispersion,
+  VolatilityGexBucket,
+  VolatilityThetaBucket,
+  VolatilityPutCallByExpiry,
+  VolatilityPutCallByMoneyness,
+  VolatilityPutCallProfile,
+  VolatilityOiConcentration,
+  VolatilityHedgingScenario,
+  VolatilityLiquidity,
+  // ── AdvVolatility ──
+  AdvVolatilityResponse,
+  AdvVolatilitySviParameters,
+  AdvVolatilityForwardPrice,
+  AdvVolatilityTotalVarianceSurface,
+  AdvVolatilityArbitrageFlag,
+  AdvVolatilityVarianceSwapFairValue,
+  AdvVolatilityGreekSurface,
+  AdvVolatilityGreeksSurfaces,
+  // ── Surface ──
+  SurfaceResponse,
+  // ── Exposure (GEX/DEX/VEX/CHEX) ──
+  GexResponse,
+  GexStrike,
+  DexResponse,
+  DexStrike,
+  VexResponse,
+  VexStrike,
+  ChexResponse,
+  ChexStrike,
+  // ── OptionQuote (live only) ──
+  OptionQuoteResponse,
+  // ── StockQuote (live only) ──
+  StockQuoteResponse,
 } from './types';
