@@ -4,6 +4,8 @@ Official JavaScript/TypeScript SDK for the [FlashAlpha](https://flashalpha.com) 
 
 Get a **live options screener** (filter/rank symbols by GEX, VRP, IV, greeks, harvest scores, and custom formulas), gamma exposure (GEX), delta exposure (DEX), vanna exposure (VEX), charm exposure (CHEX), implied volatility, volatility surface, 0DTE analytics, BSM greeks, Kelly criterion position sizing, and more — all from a single npm package.
 
+> 🔑 **[Get a free API key at flashalpha.com →](https://flashalpha.com)** · 📚 [API documentation](https://flashalpha.com/docs) · 💹 [FlashAlpha options analytics API](https://flashalpha.com)
+
 Requires Node.js 18+ (uses the built-in `fetch` API — zero dependencies).
 
 ## Installation
