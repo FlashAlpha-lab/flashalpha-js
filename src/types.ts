@@ -1559,15 +1559,15 @@ export interface AdvVolatilityResponse {
 //
 // 2D implied-volatility grid — `iv` is row-major `[tenor_index][moneyness_index]`
 // with axes labelled by `tenors` (years) and `moneyness` (log-moneyness).
-// `slices_used` lists which option-chain slices contributed to the grid.
+// `slices_used` is the count of option-chain expiry slices that fed the fit.
 
 /**
  * Implied-volatility surface from `GET /v1/surface/{symbol}` (public).
  *
  * `iv` is row-major `[tenor][moneyness]` with axes labelled by `tenors`
  * (years) and `moneyness` (log-moneyness). `grid_size` is the per-axis
- * resolution (typically 50). `slices_used` identifies which option-chain
- * slices contributed to the calibration.
+ * resolution (typically 50). `slices_used` is the number of option-chain
+ * expiry slices that contributed to the calibration.
  */
 export interface SurfaceResponse {
   /** Echoed from the request path (e.g. "SPY"). */
@@ -1584,8 +1584,8 @@ export interface SurfaceResponse {
   moneyness?: number[];
   /** Implied vol grid `[tenor][moneyness]` (annualised %). */
   iv?: number[][];
-  /** Option-chain slices that contributed to the calibration. */
-  slices_used?: string[];
+  /** Count of option-chain expiry slices that contributed to the calibration. */
+  slices_used?: number;
 }
 
 
@@ -2064,4 +2064,794 @@ export interface ScreenerMeta {
 export interface ScreenerResponse {
   meta?: ScreenerMeta;
   data?: Record<string, unknown>[];
+}
+
+// ── Flow (live, simulation-aware) ───────────────────────────────────────────
+//
+// Typed models for the `/v1/flow/*` surface (Alpha+). Two families:
+//
+//  * **Analytics** (`/v1/flow/{levels,pin-risk,summary,oi,gex,dex,
+//    dealer-risk,live}/{symbol}`) — simulation-aware exposure that folds
+//    today's intraday trade tape onto the settled book, so gamma flip /
+//    walls / GEX reflect *today's* flow. snake_case wire shape. Optional
+//    `expiry=YYYY-MM-DD` slices to one expiration cycle.
+//
+//  * **Raw flow data** (`/v1/flow/options/*`, `/v1/flow/stocks/*`) — the
+//    underlying trade tape: prints, blocks, per-minute history, cumulative
+//    net-flow series, cross-symbol leaderboards / outliers. Proxied verbatim
+//    so wire keys are **camelCase** and timestamps are ISO-8601 UTC strings.
+//
+// Flow gex/dex per-strike rows are the same wire shape as the settled
+// `/v1/exposure/gex|dex` endpoints, so they reuse `GexStrike` / `DexStrike`.
+
+/**
+ * Live key levels from `GET /v1/flow/levels/{symbol}`.
+ *
+ * Gamma flip, call/put walls and max-pain recomputed against the live
+ * (intraday-flow-adjusted) book. Each level is `null` when it can't be
+ * located (e.g. no sign change in net gamma). Requires the Alpha plan.
+ */
+export interface FlowLevelsResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at `as_of`. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back (`YYYY-MM-DD`), or `null`/absent for the whole chain. */
+  expiry?: string | null;
+  /** Spot where live net dealer gamma crosses zero. `null` if no flip. */
+  live_gamma_flip?: number | null;
+  /** Strike of the largest live call-gamma concentration (upside magnet). */
+  live_call_wall?: number | null;
+  /** Strike of the largest live put-gamma concentration (downside magnet). */
+  live_put_wall?: number | null;
+  /** Live max-pain strike (most option value expires worthless). */
+  live_max_pain?: number | null;
+}
+
+/** Component scores (0–100) behind the `live_pin_risk` headline. */
+export interface FlowPinRiskBreakdown {
+  /** Open-interest concentration around the magnet strike. */
+  oi_score?: number;
+  /** How close spot is to the magnet strike. */
+  proximity_score?: number;
+  /** Time-to-close weighting (pin pressure rises into the cash close). */
+  time_score?: number;
+  /** Dealer-gamma intensity at the magnet strike. */
+  gamma_score?: number;
+}
+
+/**
+ * 0DTE pin-risk score from `GET /v1/flow/pin-risk/{symbol}`.
+ *
+ * `live_pin_risk` is a 0–100 composite of the four `breakdown`
+ * components. `magnet_strike` is the strike spot is most likely pinned
+ * toward into the close. Requires the Alpha plan.
+ */
+export interface FlowPinRiskResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Composite 0–100 pin-risk score (higher = stronger pin pull). */
+  live_pin_risk?: number;
+  /** Pin magnet strike (`argmax|net gamma|`). `null` if no dominant strike. */
+  magnet_strike?: number | null;
+  /** Signed % distance from spot to the magnet strike. */
+  distance_to_magnet_pct?: number | null;
+  /** Hours remaining until the regular-session cash close. */
+  time_to_close_hours?: number | null;
+  /** Component scores behind `live_pin_risk`. */
+  breakdown?: FlowPinRiskBreakdown;
+}
+
+/**
+ * At-a-glance flow direction from `GET /v1/flow/summary/{symbol}`.
+ * Headline read on whether today's tape has shifted the dealer book.
+ * Requires the Alpha plan.
+ */
+export interface FlowSummaryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Net classified direction of intraday flow (e.g. `'bullish'`, `'bearish'`, `'neutral'`). */
+  flow_direction?: string;
+  /** Net change in simulated open interest since the open (contracts). */
+  intraday_oi_delta?: number;
+  /** Contracts that have printed at least one trade today. */
+  contracts_with_flow?: number;
+  /** Total contracts tracked for the underlying. */
+  contracts_total?: number;
+  /** Live (flow-adjusted) net GEX (dollars per 1% spot move). */
+  live_gex?: number | null;
+  /** % shift in net GEX caused by today's flow vs the settled book. `null` when the settled baseline is zero. */
+  flow_gex_pct_shift?: number | null;
+}
+
+/**
+ * Open-interest simulator state from `GET /v1/flow/oi/{symbol}`.
+ * Settled (official) OI vs the intraday simulated OI. Requires the Alpha
+ * plan. Note: this endpoint does NOT return `underlying_price`.
+ */
+export interface FlowOiResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Official exchange OI from the settled snapshot (sum across the chain). */
+  official_oi?: number;
+  /** Intraday simulated OI (official + estimated open/close from tape). */
+  simulated_oi?: number;
+  /** `simulated_oi - official_oi` (signed). */
+  intraday_oi_delta?: number;
+  /** Confidence 0–1 in the intraday OI estimate (trade-tape coverage). */
+  oi_delta_confidence?: number | null;
+  /** OI actually used by the live analytics (blended). */
+  effective_oi?: number;
+  /** Total contracts tracked for the underlying. */
+  contracts_total?: number;
+  /** Contracts that have printed at least one trade today. */
+  contracts_with_flow?: number;
+}
+
+/**
+ * Live per-strike GEX from `GET /v1/flow/gex/{symbol}`.
+ * Same per-strike shape as settled `/v1/exposure/gex` (reuses
+ * `GexStrike`) computed against the live book. Requires the Alpha plan.
+ */
+export interface FlowGexResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Live net GEX across the chain (dollars per 1% spot move). */
+  live_net_gex?: number | null;
+  /** Categorical regime label (e.g. `'positive'`, `'negative'`). */
+  live_net_gex_label?: string;
+  /** Live gamma-flip spot. `null` if no sign change. */
+  live_gamma_flip?: number | null;
+  /** Per-strike rows (identical schema to settled GEX). */
+  strikes?: GexStrike[];
+}
+
+/**
+ * Live per-strike DEX from `GET /v1/flow/dex/{symbol}`.
+ * Same per-strike shape as settled `/v1/exposure/dex` (reuses
+ * `DexStrike`) computed against the live book. Requires the Alpha plan.
+ */
+export interface FlowDexResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Live net DEX across the chain (dollars). */
+  live_net_dex?: number | null;
+  /** Per-strike DEX breakdown. */
+  strikes?: DexStrike[];
+}
+
+/**
+ * Settled-vs-live dealer risk from `GET /v1/flow/dealer-risk/{symbol}`.
+ * Side-by-side of the settled snapshot and the live flow-adjusted book,
+ * with the dollar adjustment and % shift today's tape produced.
+ * Requires the Alpha plan.
+ */
+export interface FlowDealerRiskResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Net GEX from the settled (prior close) snapshot. */
+  settled_net_gex?: number | null;
+  /** Net GEX from the live flow-adjusted book. */
+  live_net_gex?: number | null;
+  /** `live_net_gex - settled_net_gex` (dollars). */
+  flow_gex_adjustment?: number | null;
+  /** % GEX shift from flow. `null` when settled baseline is zero. */
+  flow_gex_pct_shift?: number | null;
+  /** Net DEX from the settled snapshot. */
+  settled_net_dex?: number | null;
+  /** Net DEX from the live flow-adjusted book. */
+  live_net_dex?: number | null;
+  /** `live_net_dex - settled_net_dex` (dollars). */
+  flow_dex_adjustment?: number | null;
+  /** % DEX shift from flow. `null` when settled baseline is zero. */
+  flow_dex_pct_shift?: number | null;
+  /** Absolute delta-weighted contracts traded today (flow magnitude). */
+  total_abs_delta_contracts?: number;
+  /** Contracts that have printed at least one trade today. */
+  contracts_with_flow?: number;
+  /** Net classified flow direction. */
+  flow_direction?: string;
+  /** Plain-English summary of whether flow has moved the book — safe to surface verbatim. */
+  description?: string;
+}
+
+/**
+ * Nested dealer-risk block inside `FlowLiveResponse`. Identical to
+ * `FlowDealerRiskResponse` minus `contracts_with_flow` (carried on the
+ * parent `live` envelope instead).
+ */
+export interface FlowAdjustedDealerRisk {
+  /** Net GEX from the settled (prior close) snapshot. */
+  settled_net_gex?: number | null;
+  /** Net GEX from the live flow-adjusted book. */
+  live_net_gex?: number | null;
+  /** `live_net_gex - settled_net_gex` (dollars). */
+  flow_gex_adjustment?: number | null;
+  /** % GEX shift from flow. `null` when settled baseline is zero. */
+  flow_gex_pct_shift?: number | null;
+  /** Net DEX from the settled snapshot. */
+  settled_net_dex?: number | null;
+  /** Net DEX from the live flow-adjusted book. */
+  live_net_dex?: number | null;
+  /** `live_net_dex - settled_net_dex` (dollars). */
+  flow_dex_adjustment?: number | null;
+  /** % DEX shift from flow. `null` when settled baseline is zero. */
+  flow_dex_pct_shift?: number | null;
+  /** Absolute delta-weighted contracts traded today (flow magnitude). */
+  total_abs_delta_contracts?: number;
+  /** Net classified flow direction. */
+  flow_direction?: string;
+  /** Plain-English summary of the shift — safe to surface verbatim. */
+  description?: string;
+}
+
+/**
+ * Everything-at-once bundle from `GET /v1/flow/live/{symbol}`.
+ * OI simulator state + live exposure + live levels + pin risk + nested
+ * dealer-risk block, in one call. Requires the Alpha plan.
+ */
+export interface FlowLiveResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Total contracts tracked for the underlying. */
+  contracts?: number;
+  /** Contracts that have printed at least one trade today. */
+  contracts_with_flow?: number;
+  /** Official exchange OI from the settled snapshot. */
+  official_oi?: number;
+  /** Intraday simulated OI (official + estimated open/close from tape). */
+  simulated_oi?: number;
+  /** `simulated_oi - official_oi` (signed). */
+  intraday_oi_delta?: number;
+  /** Confidence 0–1 in the intraday OI estimate (trade-tape coverage). */
+  oi_delta_confidence?: number | null;
+  /** OI actually used by the live analytics (blended). */
+  effective_oi?: number;
+  /** Live net GEX (dollars per 1% spot move). */
+  live_gex?: number | null;
+  /** Live net DEX (dollars). Named `live_gex_delta` on the wire. */
+  live_gex_delta?: number | null;
+  /** Live gamma-flip spot. `null` if no sign change. */
+  live_gamma_flip?: number | null;
+  /** Largest live call-gamma concentration strike (upside magnet). */
+  live_call_wall?: number | null;
+  /** Largest live put-gamma concentration strike (downside magnet). */
+  live_put_wall?: number | null;
+  /** Live max-pain strike (most option value expires worthless). */
+  live_max_pain?: number | null;
+  /** Composite 0–100 pin-risk score (higher = stronger pin pull). */
+  live_pin_risk?: number;
+  /** Nested settled-vs-live dealer-risk block. */
+  flow_adjusted_dealer_risk?: FlowAdjustedDealerRisk;
+}
+
+// ── Raw flow data (camelCase wire keys, proxied from the ingest tier) ────────
+
+/** A single option trade print (`trades[]` element). */
+export interface FlowOptionTrade {
+  /** Trade timestamp (ISO-8601 UTC). */
+  ts?: string;
+  /** OPRA instrument id of the contract. */
+  instrumentId?: number;
+  /** Contract expiration (`YYYY-MM-DD`). */
+  expiry?: string;
+  /** Contract strike price. */
+  strike?: number;
+  /** `'C'` (call) or `'P'` (put). */
+  right?: string;
+  /** Trade price. */
+  price?: number;
+  /** Trade size in contracts. */
+  size?: number;
+  /** Trade-side classification vs the NBBO at print (`'buy'`/`'sell'`/`'mid'`). */
+  side?: string;
+  /** True when the print is at/above the block-size threshold. */
+  isBlock?: boolean;
+  /** NBBO bid at the moment of the trade. */
+  bid?: number;
+  /** NBBO ask at the moment of the trade. */
+  ask?: number;
+}
+
+/**
+ * Recent option trades from `GET /v1/flow/options/{symbol}/recent`.
+ * Newest-first tape across the chain (or one `expiry`). `count` is the
+ * number returned (capped by `limit`); `totalAvailable` is the unclamped
+ * total. `expiry` is echoed only when the filter is supplied. Requires Alpha.
+ */
+export interface FlowOptionRecentResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Expiration filter echoed back when supplied, else absent. */
+  expiry?: string | null;
+  /** Number of trades returned (capped by `limit`). */
+  count?: number;
+  /** Unclamped total trade count available. */
+  totalAvailable?: number;
+  /** Newest-first list of trade prints. */
+  trades?: FlowOptionTrade[];
+}
+
+/**
+ * Per-underlying option-flow aggregates from
+ * `GET /v1/flow/options/{symbol}/summary`. Requires the Alpha plan.
+ */
+export interface FlowOptionSummaryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Expiration filter echoed back when supplied, else absent. */
+  expiry?: string | null;
+  /** Distinct contracts that printed at least one trade. */
+  contractsWithTrades?: number;
+  /** Total number of trade prints. */
+  totalTrades?: number;
+  /** Buy-classified contract volume. */
+  buyVolume?: number;
+  /** Sell-classified contract volume. */
+  sellVolume?: number;
+  /** Volume classified at the mid (uninformed). */
+  midVolume?: number;
+  /** `buyVolume - sellVolume`. */
+  netVolume?: number;
+  /** Largest single trade size. */
+  biggestSingleTrade?: number;
+  /** Timestamp of the most recent print; absent when no trades. */
+  lastTradeUtc?: string | null;
+}
+
+/** A single large option print (`blocks[]` element). */
+export interface FlowOptionBlock {
+  /** Trade timestamp (ISO-8601 UTC). */
+  ts?: string;
+  /** Contract expiration (`YYYY-MM-DD`). */
+  expiry?: string;
+  /** Contract strike price. */
+  strike?: number;
+  /** `'C'` (call) or `'P'` (put). */
+  right?: string;
+  /** Trade price. */
+  price?: number;
+  /** Trade size in contracts. */
+  size?: number;
+  /** Trade-side classification (`'buy'`/`'sell'`/`'mid'`). */
+  side?: string;
+}
+
+/**
+ * Large option prints from `GET /v1/flow/options/{symbol}/blocks`.
+ * All trades with `size >= minSize`, newest-first. Requires the Alpha plan.
+ */
+export interface FlowOptionBlocksResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Expiration filter echoed back when supplied, else absent. */
+  expiry?: string | null;
+  /** Minimum trade size that qualified as a block (echoed back). */
+  minSize?: number;
+  /** Number of blocks returned. */
+  count?: number;
+  /** Newest-first list of large prints. */
+  blocks?: FlowOptionBlock[];
+}
+
+/** One per-minute option-flow bucket (`buckets[]` element). */
+export interface FlowOptionHistoryBucket {
+  /** Bucket start (ISO-8601 UTC, minute-aligned). */
+  ts?: string;
+  /** Buy-classified volume in the bucket. */
+  buyVolume?: number;
+  /** Sell-classified volume in the bucket. */
+  sellVolume?: number;
+  /** Mid-classified volume in the bucket. */
+  midVolume?: number;
+  /** `buyVolume - sellVolume`. */
+  netVolume?: number;
+  /** Number of trades in the bucket. */
+  tradeCount?: number;
+  /** Largest single trade size in the bucket. */
+  biggestTrade?: number;
+  /** Volume-weighted average trade price across the bucket. */
+  vwap?: number;
+  /** Highest trade price in the bucket. */
+  high?: number;
+  /** Lowest trade price in the bucket. */
+  low?: number;
+}
+
+/**
+ * Per-minute option-flow history from
+ * `GET /v1/flow/options/{symbol}/history`. Newest-first, capped to the
+ * `minutes` window. Requires the Alpha plan.
+ */
+export interface FlowOptionHistoryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Expiration filter echoed back when supplied, else absent. */
+  expiry?: string | null;
+  /** Lookback window in minutes (echoed back). */
+  minutes?: number;
+  /** Number of buckets returned. */
+  count?: number;
+  /** Newest-first list of per-minute aggregates. */
+  buckets?: FlowOptionHistoryBucket[];
+}
+
+/**
+ * One point of a cumulative net-flow series (`points[]` element).
+ * Shared by the option and stock `/cumulative` endpoints.
+ */
+export interface FlowCumulativePoint {
+  /** Bucket start (ISO-8601 UTC, minute-aligned). */
+  ts?: string;
+  /** Net volume in this minute bucket. */
+  netVolume?: number;
+  /** Running sum of `netVolume` from the start of the window (HIRO-style line). */
+  cumulative?: number;
+  /** Volume-weighted average price in the bucket. */
+  vwap?: number;
+  /** Number of trades in the bucket. */
+  tradeCount?: number;
+}
+
+/**
+ * Cumulative option net-flow series from
+ * `GET /v1/flow/options/{symbol}/cumulative`. Requires the Alpha plan.
+ */
+export interface FlowOptionCumulativeResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Expiration filter echoed back when supplied, else absent. */
+  expiry?: string | null;
+  /** Lookback window in minutes (echoed back). */
+  minutes?: number;
+  /** Number of points returned. */
+  count?: number;
+  /** Chronological cumulative net-flow series. */
+  points?: FlowCumulativePoint[];
+}
+
+/** A single stock trade print (`trades[]` element). */
+export interface FlowStockTrade {
+  /** Trade timestamp (ISO-8601 UTC). */
+  ts?: string;
+  /** Trade price. */
+  price?: number;
+  /** Trade size in shares. */
+  size?: number;
+  /** Trade-side classification (`'buy'`/`'sell'`/`'mid'`). */
+  side?: string;
+  /** True when the print is at/above the block-size threshold. */
+  isBlock?: boolean;
+  /** NBBO bid at the moment of the trade. */
+  bid?: number;
+  /** NBBO ask at the moment of the trade. */
+  ask?: number;
+}
+
+/**
+ * Recent stock trades from `GET /v1/flow/stocks/{symbol}/recent`.
+ * Newest-first stock tape. Requires the Alpha plan.
+ */
+export interface FlowStockRecentResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Number of trades returned (capped by `limit`). */
+  count?: number;
+  /** Unclamped total trade count available. */
+  totalAvailable?: number;
+  /** Newest-first list of trade prints. */
+  trades?: FlowStockTrade[];
+}
+
+/**
+ * Per-symbol stock-flow aggregates from
+ * `GET /v1/flow/stocks/{symbol}/summary`. Requires the Alpha plan.
+ */
+export interface FlowStockSummaryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Total number of trade prints. */
+  totalTrades?: number;
+  /** Buy-classified share volume. */
+  buyVolume?: number;
+  /** Sell-classified share volume. */
+  sellVolume?: number;
+  /** Volume classified at the mid (uninformed). */
+  midVolume?: number;
+  /** `buyVolume - sellVolume`. */
+  netVolume?: number;
+  /** Largest single trade size. */
+  biggestSingleTrade?: number;
+  /** Absent when the symbol has no trades. */
+  lastTradeUtc?: string | null;
+}
+
+/** A single large stock print (`blocks[]` element). */
+export interface FlowStockBlock {
+  /** Trade timestamp (ISO-8601 UTC). */
+  ts?: string;
+  /** Trade price. */
+  price?: number;
+  /** Trade size in shares. */
+  size?: number;
+  /** Trade-side classification (`'buy'`/`'sell'`/`'mid'`). */
+  side?: string;
+  /** NBBO bid at the moment of the trade. */
+  bid?: number;
+  /** NBBO ask at the moment of the trade. */
+  ask?: number;
+}
+
+/**
+ * Large stock prints from `GET /v1/flow/stocks/{symbol}/blocks`.
+ * All trades with `size >= minSize`, newest-first. Requires the Alpha plan.
+ */
+export interface FlowStockBlocksResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Minimum trade size that qualified as a block (echoed back). */
+  minSize?: number;
+  /** Number of blocks returned. */
+  count?: number;
+  /** Newest-first list of large prints. */
+  blocks?: FlowStockBlock[];
+}
+
+/**
+ * One per-minute stock-flow bucket (`buckets[]` element). Like
+ * `FlowOptionHistoryBucket` but also carries OHLC of the print price.
+ */
+export interface FlowStockHistoryBucket {
+  /** Bucket start (ISO-8601 UTC, minute-aligned). */
+  ts?: string;
+  /** Buy-classified volume in the bucket. */
+  buyVolume?: number;
+  /** Sell-classified volume in the bucket. */
+  sellVolume?: number;
+  /** Mid-classified volume in the bucket. */
+  midVolume?: number;
+  /** `buyVolume - sellVolume`. */
+  netVolume?: number;
+  /** Number of trades in the bucket. */
+  tradeCount?: number;
+  /** Largest single trade size in the bucket. */
+  biggestTrade?: number;
+  /** Volume-weighted average trade price across the bucket. */
+  vwap?: number;
+  /** First trade price in the bucket. */
+  open?: number;
+  /** Last trade price in the bucket. */
+  close?: number;
+  /** Highest trade price in the bucket. */
+  high?: number;
+  /** Lowest trade price in the bucket. */
+  low?: number;
+}
+
+/**
+ * Per-minute stock-flow history from
+ * `GET /v1/flow/stocks/{symbol}/history`. Newest-first, capped to the
+ * `minutes` window. Requires the Alpha plan.
+ */
+export interface FlowStockHistoryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Lookback window in minutes (echoed back). */
+  minutes?: number;
+  /** Number of buckets returned. */
+  count?: number;
+  /** Newest-first list of per-minute aggregates. */
+  buckets?: FlowStockHistoryBucket[];
+}
+
+/**
+ * Cumulative stock net-flow series from
+ * `GET /v1/flow/stocks/{symbol}/cumulative`. Requires the Alpha plan.
+ */
+export interface FlowStockCumulativeResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Lookback window in minutes (echoed back). */
+  minutes?: number;
+  /** Number of points returned. */
+  count?: number;
+  /** Chronological cumulative net-flow series. */
+  points?: FlowCumulativePoint[];
+}
+
+/**
+ * One ranked underlying in the option-flow leaderboard. Option rows
+ * carry `avgPremium`; the stock leaderboard uses `vwap` instead.
+ */
+export interface FlowOptionLeaderRow {
+  /** Ranked underlying. */
+  symbol?: string;
+  /** Net contracts (`buyVolume - sellVolume`). */
+  netVolume?: number;
+  /** Net dollar option flow (≈ net contracts × avg premium × 100). */
+  netNotional?: number;
+  /** Buy-classified contract volume. */
+  buyVolume?: number;
+  /** Sell-classified contract volume. */
+  sellVolume?: number;
+  /** Volume-weighted average option premium over the window. */
+  avgPremium?: number;
+  /** Number of trades over the window. */
+  tradeCount?: number;
+  /** Timestamp of the most recent print (ISO-8601 UTC). */
+  lastTradeUtc?: string;
+}
+
+/**
+ * Cross-symbol option-flow leaderboard from
+ * `GET /v1/flow/options/leaderboard`. Top `n` net-dollar buyers and
+ * sellers over the window. Cached ~30s. Requires the Alpha plan.
+ */
+export interface FlowOptionLeaderboardResponse {
+  /** When the snapshot was generated (ISO-8601 UTC). */
+  generatedUtc?: string;
+  /** Number of ranked rows requested per side. */
+  n?: number;
+  /** Aggregation window in minutes. */
+  windowMinutes?: number;
+  /** Top net-dollar buyers. */
+  buyers?: FlowOptionLeaderRow[];
+  /** Top net-dollar sellers. */
+  sellers?: FlowOptionLeaderRow[];
+}
+
+/** One flagged underlying in an outliers table (option or stock). */
+export interface FlowOutlierRow {
+  /** Flagged underlying. */
+  symbol?: string;
+  /** Number of trades over the window. */
+  tradeCount?: number;
+  /** Buy-classified volume. */
+  buyVolume?: number;
+  /** Sell-classified volume. */
+  sellVolume?: number;
+  /** Mid-classified volume. */
+  midVolume?: number;
+  /** `buyVolume - sellVolume`. */
+  netVolume?: number;
+  /** `|buy-sell| / (buy+sell)` × 100: 0 = balanced, 100 = one-sided. */
+  imbalancePct?: number;
+  /** Tiered skew label (`FLAT`/`MILD_BUY`/`BUY`/`STRONG_BUY`/…). */
+  skew?: string;
+  /** Gross traded notional over the window (dollars). */
+  notional?: number;
+  /** Net (signed) traded notional over the window (dollars). */
+  netNotional?: number;
+  /** Largest single trade size. */
+  biggestTrade?: number;
+  /** Timestamp of the biggest print; `null` if none in window. */
+  biggestTradeUtc?: string | null;
+  /** Age of the biggest print in seconds; `-1` if none. */
+  biggestAgeSec?: number;
+  /** VWAP of the most recent activity. */
+  lastVwap?: number;
+  /** Timestamp of the last print; `null` if none. */
+  lastTradeUtc?: string | null;
+  /** Age of the last print in seconds; `-1` if none. */
+  lastTradeAgeSec?: number;
+}
+
+/**
+ * Cross-symbol option-flow outliers from
+ * `GET /v1/flow/options/outliers`. Cached ~30s. Requires the Alpha plan.
+ */
+export interface FlowOptionOutliersResponse {
+  /** When the snapshot was generated (ISO-8601 UTC). */
+  generatedUtc?: string;
+  /** Aggregation window in minutes. */
+  windowMinutes?: number;
+  /** Symbols evaluated. */
+  tracked?: number;
+  /** Symbols that met `minTrades` and had non-zero volume. */
+  qualified?: number;
+  /** Max rows requested. */
+  limit?: number;
+  /** Imbalance-ranked flagged underlyings. */
+  outliers?: FlowOutlierRow[];
+}
+
+/**
+ * One ranked symbol in the stock-flow leaderboard. Stock rows carry
+ * `vwap`; the option leaderboard uses `avgPremium` instead.
+ */
+export interface FlowStockLeaderRow {
+  /** Ranked symbol. */
+  symbol?: string;
+  /** Net shares (`buyVolume - sellVolume`). */
+  netVolume?: number;
+  /** Net dollar flow (net shares × VWAP). */
+  netNotional?: number;
+  /** Buy-classified share volume. */
+  buyVolume?: number;
+  /** Sell-classified share volume. */
+  sellVolume?: number;
+  /** Volume-weighted average trade price over the window. */
+  vwap?: number;
+  /** Number of trades over the window. */
+  tradeCount?: number;
+  /** Timestamp of the most recent print (ISO-8601 UTC). */
+  lastTradeUtc?: string;
+}
+
+/**
+ * Cross-symbol stock-flow leaderboard from
+ * `GET /v1/flow/stocks/leaderboard`. Cached ~30s. Requires the Alpha plan.
+ */
+export interface FlowStockLeaderboardResponse {
+  /** When the snapshot was generated (ISO-8601 UTC). */
+  generatedUtc?: string;
+  /** Number of ranked rows requested per side. */
+  n?: number;
+  /** Aggregation window in minutes. */
+  windowMinutes?: number;
+  /** Top net-dollar buyers. */
+  buyers?: FlowStockLeaderRow[];
+  /** Top net-dollar sellers. */
+  sellers?: FlowStockLeaderRow[];
+}
+
+/**
+ * Cross-symbol stock-flow outliers from
+ * `GET /v1/flow/stocks/outliers`. Cached ~30s. Requires the Alpha plan.
+ */
+export interface FlowStockOutliersResponse {
+  /** When the snapshot was generated (ISO-8601 UTC). */
+  generatedUtc?: string;
+  /** Aggregation window in minutes. */
+  windowMinutes?: number;
+  /** Symbols evaluated. */
+  tracked?: number;
+  /** Symbols that met `minTrades` and had non-zero volume. */
+  qualified?: number;
+  /** Max rows requested. */
+  limit?: number;
+  /** Imbalance-ranked flagged symbols. */
+  outliers?: FlowOutlierRow[];
 }

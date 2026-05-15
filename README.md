@@ -85,7 +85,33 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `exposureLevels(symbol)` | Key support/resistance levels from options exposure |
 | `narrative(symbol)` | Verbal narrative analysis of exposure. Requires Growth+ |
 | `zeroDte(symbol, opts?)` | Real-time 0DTE analytics. Requires Growth+ |
-| `exposureHistory(symbol, opts?)` | Daily exposure snapshots for trend analysis. Requires Growth+ |
+
+### Flow (live, simulation-aware) — requires the Alpha plan
+
+| Method | Description |
+|--------|-------------|
+| `flowLevels(symbol, opts?)` | Live gamma flip / call & put walls / max pain |
+| `flowPinRisk(symbol, opts?)` | 0DTE pin-risk score + component breakdown |
+| `flowSummary(symbol, opts?)` | At-a-glance flow direction + headline GEX shift |
+| `flowOi(symbol, opts?)` | Open-interest simulator state (official vs intraday) |
+| `flowGex(symbol, opts?)` | Live (flow-adjusted) GEX + per-strike profile |
+| `flowDex(symbol, opts?)` | Live (flow-adjusted) DEX + per-strike profile |
+| `flowDealerRisk(symbol, opts?)` | Settled-vs-live dealer GEX/DEX + flow adjustment |
+| `flowLive(symbol, opts?)` | Everything-at-once live flow bundle |
+| `flowOptionRecent(symbol, opts?)` | Recent option trades, newest-first |
+| `flowOptionSummary(symbol, opts?)` | Per-underlying option-flow aggregates |
+| `flowOptionBlocks(symbol, opts?)` | Large option prints (`size >= minSize`) |
+| `flowOptionHistory(symbol, opts?)` | Per-minute option-flow buckets |
+| `flowOptionCumulative(symbol, opts?)` | Cumulative option net-flow series |
+| `flowStockRecent(symbol, opts?)` | Recent stock trades, newest-first |
+| `flowStockSummary(symbol)` | Per-symbol stock-flow aggregates |
+| `flowStockBlocks(symbol, opts?)` | Large stock prints (`size >= minSize`) |
+| `flowStockHistory(symbol, opts?)` | Per-minute stock-flow buckets w/ OHLC |
+| `flowStockCumulative(symbol, opts?)` | Cumulative stock net-flow series |
+| `flowOptionsLeaderboard(opts?)` | Cross-symbol option-flow leaderboard |
+| `flowOptionsOutliers(opts?)` | Cross-symbol option-flow outliers |
+| `flowStocksLeaderboard(opts?)` | Cross-symbol stock-flow leaderboard |
+| `flowStocksOutliers(opts?)` | Cross-symbol stock-flow outliers |
 
 ### Pricing and Sizing
 
@@ -145,14 +171,6 @@ await fa.gex('SPY', {
 ```typescript
 await fa.zeroDte('SPY', {
   strikeRange: 10, // number of strikes around ATM to include
-});
-```
-
-### exposureHistory
-
-```typescript
-await fa.exposureHistory('SPY', {
-  days: 30, // number of calendar days of history to return
 });
 ```
 

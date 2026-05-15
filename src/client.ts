@@ -22,6 +22,28 @@ import type {
   DexResponse,
   ExposureLevelsResponse,
   ExposureSummaryResponse,
+  FlowDealerRiskResponse,
+  FlowDexResponse,
+  FlowGexResponse,
+  FlowLevelsResponse,
+  FlowLiveResponse,
+  FlowOiResponse,
+  FlowOptionBlocksResponse,
+  FlowOptionCumulativeResponse,
+  FlowOptionHistoryResponse,
+  FlowOptionLeaderboardResponse,
+  FlowOptionOutliersResponse,
+  FlowOptionRecentResponse,
+  FlowOptionSummaryResponse,
+  FlowPinRiskResponse,
+  FlowStockBlocksResponse,
+  FlowStockCumulativeResponse,
+  FlowStockHistoryResponse,
+  FlowStockLeaderboardResponse,
+  FlowStockOutliersResponse,
+  FlowStockRecentResponse,
+  FlowStockSummaryResponse,
+  FlowSummaryResponse,
   GexResponse,
   HealthResponse,
   MaxPainResponse,
@@ -79,8 +101,52 @@ export interface ZeroDteOptions {
   strikeRange?: number;
 }
 
-export interface ExposureHistoryOptions {
-  days?: number;
+/** Optional expiration-cycle filter for flow analytics endpoints. */
+export interface FlowExpiryOptions {
+  /** Slice to one expiration cycle (`YYYY-MM-DD`). */
+  expiry?: string;
+}
+
+/** Options for the raw option `recent` flow endpoint. */
+export interface FlowRecentOptions {
+  /** Max trades to return (1–500). */
+  limit?: number;
+  /** Slice to one expiration cycle (`YYYY-MM-DD`). Options only. */
+  expiry?: string;
+}
+
+/** Options for the raw `blocks` flow endpoints. */
+export interface FlowBlocksOptions {
+  /** Minimum trade size that qualifies as a block. */
+  minSize?: number;
+  /** Slice to one expiration cycle (`YYYY-MM-DD`). Options only. */
+  expiry?: string;
+}
+
+/** Options for the raw `history` / `cumulative` flow endpoints. */
+export interface FlowHistoryOptions {
+  /** Lookback window in minutes (1–10080). */
+  minutes?: number;
+  /** Slice to one expiration cycle (`YYYY-MM-DD`). Options only. */
+  expiry?: string;
+}
+
+/** Options for the cross-symbol leaderboard flow endpoints. */
+export interface FlowLeaderboardOptions {
+  /** Number of ranked rows per side (1–50). */
+  n?: number;
+  /** Aggregation window in minutes (1–10080). */
+  windowMinutes?: number;
+}
+
+/** Options for the cross-symbol outliers flow endpoints. */
+export interface FlowOutliersOptions {
+  /** Max rows to return (1–200). */
+  limit?: number;
+  /** Minimum trades a symbol needs to qualify. */
+  minTrades?: number;
+  /** Aggregation window in minutes (1–10080). */
+  windowMinutes?: number;
 }
 
 export interface OptionQuoteOptions {
@@ -442,11 +508,174 @@ export class FlashAlpha {
     return this._get(`/v1/exposure/zero-dte/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<ZeroDteResponse>;
   }
 
-  /** Daily exposure snapshots for trend analysis. Requires Growth+. */
-  async exposureHistory(symbol: string, options: ExposureHistoryOptions = {}): Promise<unknown> {
+  // ── Flow (live, simulation-aware) — requires the Alpha plan ───────────────
+  //
+  // Analytics endpoints (snake_case) fold today's intraday trade tape into
+  // the settled book. All accept an optional `expiry` ("YYYY-MM-DD") to
+  // slice to a single expiration cycle.
+
+  /** Live gamma flip / call & put walls / max pain. Requires Alpha. */
+  async flowLevels(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowLevelsResponse> {
     const params: Record<string, string | number | undefined> = {};
-    if (options.days !== undefined) params['days'] = options.days;
-    return this._get(`/v1/exposure/history/${_seg(symbol)}`, Object.keys(params).length ? params : undefined);
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/levels/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowLevelsResponse>;
+  }
+
+  /** 0DTE pin-risk score + component breakdown. Requires Alpha. */
+  async flowPinRisk(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowPinRiskResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/pin-risk/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowPinRiskResponse>;
+  }
+
+  /** At-a-glance flow direction + headline GEX shift. Requires Alpha. */
+  async flowSummary(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowSummaryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/summary/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowSummaryResponse>;
+  }
+
+  /** Open-interest simulator state (official vs intraday). Requires Alpha. */
+  async flowOi(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowOiResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/oi/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowOiResponse>;
+  }
+
+  /** Live (flow-adjusted) GEX + per-strike profile. Requires Alpha. */
+  async flowGex(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowGexResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/gex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowGexResponse>;
+  }
+
+  /** Live (flow-adjusted) DEX + per-strike profile. Requires Alpha. */
+  async flowDex(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowDexResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/dex/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowDexResponse>;
+  }
+
+  /** Settled-vs-live dealer GEX/DEX + flow adjustment. Requires Alpha. */
+  async flowDealerRisk(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowDealerRiskResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/dealer-risk/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowDealerRiskResponse>;
+  }
+
+  /** Everything-at-once live flow bundle (convenience). Requires Alpha. */
+  async flowLive(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowLiveResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/live/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowLiveResponse>;
+  }
+
+  // Raw flow data (camelCase) — proxied trade tape.
+
+  /** Recent option trades, newest-first (`limit` 1–500). Requires Alpha. */
+  async flowOptionRecent(symbol: string, options: FlowRecentOptions = {}): Promise<FlowOptionRecentResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/options/${_seg(symbol)}/recent`, Object.keys(params).length ? params : undefined) as Promise<FlowOptionRecentResponse>;
+  }
+
+  /** Per-underlying option-flow aggregates. Requires Alpha. */
+  async flowOptionSummary(symbol: string, options: FlowExpiryOptions = {}): Promise<FlowOptionSummaryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/options/${_seg(symbol)}/summary`, Object.keys(params).length ? params : undefined) as Promise<FlowOptionSummaryResponse>;
+  }
+
+  /** Large option prints (`size >= minSize`). Requires Alpha. */
+  async flowOptionBlocks(symbol: string, options: FlowBlocksOptions = {}): Promise<FlowOptionBlocksResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minSize !== undefined) params['minSize'] = options.minSize;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/options/${_seg(symbol)}/blocks`, Object.keys(params).length ? params : undefined) as Promise<FlowOptionBlocksResponse>;
+  }
+
+  /** Per-minute option-flow buckets (`minutes` 1–10080). Requires Alpha. */
+  async flowOptionHistory(symbol: string, options: FlowHistoryOptions = {}): Promise<FlowOptionHistoryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/options/${_seg(symbol)}/history`, Object.keys(params).length ? params : undefined) as Promise<FlowOptionHistoryResponse>;
+  }
+
+  /** Cumulative option net-flow series. Requires Alpha. */
+  async flowOptionCumulative(symbol: string, options: FlowHistoryOptions = {}): Promise<FlowOptionCumulativeResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/options/${_seg(symbol)}/cumulative`, Object.keys(params).length ? params : undefined) as Promise<FlowOptionCumulativeResponse>;
+  }
+
+  /** Recent stock trades, newest-first (`limit` 1–500). Requires Alpha. */
+  async flowStockRecent(symbol: string, options: { limit?: number } = {}): Promise<FlowStockRecentResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/recent`, Object.keys(params).length ? params : undefined) as Promise<FlowStockRecentResponse>;
+  }
+
+  /** Per-symbol stock-flow aggregates. Requires Alpha. */
+  async flowStockSummary(symbol: string): Promise<FlowStockSummaryResponse> {
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/summary`) as Promise<FlowStockSummaryResponse>;
+  }
+
+  /** Large stock prints (`size >= minSize`). Requires Alpha. */
+  async flowStockBlocks(symbol: string, options: { minSize?: number } = {}): Promise<FlowStockBlocksResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minSize !== undefined) params['minSize'] = options.minSize;
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/blocks`, Object.keys(params).length ? params : undefined) as Promise<FlowStockBlocksResponse>;
+  }
+
+  /** Per-minute stock-flow buckets w/ OHLC (`minutes` 1–10080). Requires Alpha. */
+  async flowStockHistory(symbol: string, options: { minutes?: number } = {}): Promise<FlowStockHistoryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/history`, Object.keys(params).length ? params : undefined) as Promise<FlowStockHistoryResponse>;
+  }
+
+  /** Cumulative stock net-flow series. Requires Alpha. */
+  async flowStockCumulative(symbol: string, options: { minutes?: number } = {}): Promise<FlowStockCumulativeResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/cumulative`, Object.keys(params).length ? params : undefined) as Promise<FlowStockCumulativeResponse>;
+  }
+
+  /** Cross-symbol option-flow leaderboard (top `n` by net $). Requires Alpha. */
+  async flowOptionsLeaderboard(options: FlowLeaderboardOptions = {}): Promise<FlowOptionLeaderboardResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.n !== undefined) params['n'] = options.n;
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    return this._get('/v1/flow/options/leaderboard', Object.keys(params).length ? params : undefined) as Promise<FlowOptionLeaderboardResponse>;
+  }
+
+  /** Cross-symbol option-flow outliers (imbalance-ranked). Requires Alpha. */
+  async flowOptionsOutliers(options: FlowOutliersOptions = {}): Promise<FlowOptionOutliersResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    if (options.minTrades !== undefined) params['minTrades'] = options.minTrades;
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    return this._get('/v1/flow/options/outliers', Object.keys(params).length ? params : undefined) as Promise<FlowOptionOutliersResponse>;
+  }
+
+  /** Cross-symbol stock-flow leaderboard (top `n` by net $). Requires Alpha. */
+  async flowStocksLeaderboard(options: FlowLeaderboardOptions = {}): Promise<FlowStockLeaderboardResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.n !== undefined) params['n'] = options.n;
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    return this._get('/v1/flow/stocks/leaderboard', Object.keys(params).length ? params : undefined) as Promise<FlowStockLeaderboardResponse>;
+  }
+
+  /** Cross-symbol stock-flow outliers (imbalance-ranked). Requires Alpha. */
+  async flowStocksOutliers(options: FlowOutliersOptions = {}): Promise<FlowStockOutliersResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    if (options.minTrades !== undefined) params['minTrades'] = options.minTrades;
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    return this._get('/v1/flow/stocks/outliers', Object.keys(params).length ? params : undefined) as Promise<FlowStockOutliersResponse>;
   }
 
   // ── Pricing & Sizing ──────────────────────────────────────────────────────

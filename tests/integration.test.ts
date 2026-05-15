@@ -1520,7 +1520,7 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       tenors: number[];
       moneyness: number[];
       iv: number[][];
-      slices_used: string[];
+      slices_used: number;
     };
 
     // ── all 8 fields ──
@@ -1534,7 +1534,7 @@ describe('FlashAlpha Integration Tests (live API)', () => {
     expect(Array.isArray(r.tenors)).toBe(true);
     expect(Array.isArray(r.moneyness)).toBe(true);
     expect(Array.isArray(r.iv)).toBe(true);
-    expect(Array.isArray(r.slices_used)).toBe(true);
+    expect(typeof r.slices_used).toBe('number');
   });
 
   itest('gex — every field declared in GexResponse must be referenced', async () => {
@@ -1698,5 +1698,262 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       expect(r).toHaveProperty(k);
     }
     expect(r.ticker).toBe('SPY');
+  });
+
+  // ── Flow (live, simulation-aware) — Alpha+ ───────────────────────────────
+  //
+  // Hit the real /v1/flow/* surface and assert every contract field is
+  // present on the live response (and on nested array-element shapes when
+  // the arrays are non-empty).
+
+  const FLOW_SYM = 'SPY';
+
+  const reqFields = (obj: unknown, fields: string[], where: string): void => {
+    expect(typeof obj).toBe('object');
+    const o = obj as Record<string, unknown>;
+    const missing = fields.filter((f) => !(f in o));
+    expect(missing).toEqual([] as string[]);
+    if (missing.length) throw new Error(`${where}: missing ${missing.join(', ')}`);
+  };
+
+  itest('flowLevels — all contract fields present', async () => {
+    const r = await fa!.flowLevels(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'live_gamma_flip', 'live_call_wall', 'live_put_wall', 'live_max_pain'],
+      'flow/levels');
+    expect((r as { symbol?: string }).symbol).toBe(FLOW_SYM);
+  });
+
+  itest('flowPinRisk — all contract fields present', async () => {
+    const r = await fa!.flowPinRisk(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'live_pin_risk', 'magnet_strike', 'distance_to_magnet_pct',
+      'time_to_close_hours', 'breakdown'], 'flow/pin-risk');
+    reqFields((r as { breakdown?: unknown }).breakdown,
+      ['oi_score', 'proximity_score', 'time_score', 'gamma_score'],
+      'flow/pin-risk.breakdown');
+  });
+
+  itest('flowSummary — all contract fields present', async () => {
+    const r = await fa!.flowSummary(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'flow_direction', 'intraday_oi_delta', 'contracts_with_flow',
+      'contracts_total', 'live_gex', 'flow_gex_pct_shift'], 'flow/summary');
+  });
+
+  itest('flowOi — all contract fields present', async () => {
+    const r = await fa!.flowOi(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'expiry', 'official_oi', 'simulated_oi',
+      'intraday_oi_delta', 'oi_delta_confidence', 'effective_oi',
+      'contracts_total', 'contracts_with_flow'], 'flow/oi');
+  });
+
+  itest('flowGex — all contract + strike fields present', async () => {
+    const r = await fa!.flowGex(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'live_net_gex', 'live_net_gex_label', 'live_gamma_flip', 'strikes'],
+      'flow/gex');
+    const strikes = (r as { strikes?: unknown[] }).strikes ?? [];
+    expect(strikes.length).toBeGreaterThan(0);
+    reqFields(strikes[0], ['strike', 'call_gex', 'put_gex', 'net_gex',
+      'call_oi', 'put_oi', 'call_volume', 'put_volume'], 'flow/gex.strikes[0]');
+  });
+
+  itest('flowDex — all contract + strike fields present', async () => {
+    const r = await fa!.flowDex(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'live_net_dex', 'strikes'], 'flow/dex');
+    const strikes = (r as { strikes?: unknown[] }).strikes ?? [];
+    expect(strikes.length).toBeGreaterThan(0);
+    reqFields(strikes[0], ['strike', 'call_dex', 'put_dex', 'net_dex'],
+      'flow/dex.strikes[0]');
+  });
+
+  itest('flowDealerRisk — all contract fields present', async () => {
+    const r = await fa!.flowDealerRisk(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'settled_net_gex', 'live_net_gex', 'flow_gex_adjustment',
+      'flow_gex_pct_shift', 'settled_net_dex', 'live_net_dex',
+      'flow_dex_adjustment', 'flow_dex_pct_shift',
+      'total_abs_delta_contracts', 'contracts_with_flow', 'flow_direction',
+      'description'], 'flow/dealer-risk');
+  });
+
+  itest('flowLive — all contract + nested dealer-risk fields present', async () => {
+    const r = await fa!.flowLive(FLOW_SYM);
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'expiry',
+      'contracts', 'contracts_with_flow', 'official_oi', 'simulated_oi',
+      'intraday_oi_delta', 'oi_delta_confidence', 'effective_oi', 'live_gex',
+      'live_gex_delta', 'live_gamma_flip', 'live_call_wall', 'live_put_wall',
+      'live_max_pain', 'live_pin_risk', 'flow_adjusted_dealer_risk'],
+      'flow/live');
+    reqFields((r as { flow_adjusted_dealer_risk?: unknown }).flow_adjusted_dealer_risk,
+      ['settled_net_gex', 'live_net_gex', 'flow_gex_adjustment',
+        'flow_gex_pct_shift', 'settled_net_dex', 'live_net_dex',
+        'flow_dex_adjustment', 'flow_dex_pct_shift',
+        'total_abs_delta_contracts', 'flow_direction', 'description'],
+      'flow/live.flow_adjusted_dealer_risk');
+  });
+
+  itest('flowOptionRecent — envelope (+ trade fields when present)', async () => {
+    const r = await fa!.flowOptionRecent(FLOW_SYM, { limit: 5 });
+    reqFields(r, ['symbol', 'count', 'totalAvailable', 'trades'],
+      'flow/options/recent');
+    const trades = (r as { trades?: unknown[] }).trades ?? [];
+    if (trades.length) {
+      reqFields(trades[0], ['ts', 'instrumentId', 'expiry', 'strike', 'right',
+        'price', 'size', 'side', 'isBlock', 'bid', 'ask'],
+        'flow/options/recent.trades[0]');
+    }
+  });
+
+  itest('flowOptionSummary — all contract fields present', async () => {
+    const r = await fa!.flowOptionSummary(FLOW_SYM);
+    reqFields(r, ['symbol', 'contractsWithTrades', 'totalTrades', 'buyVolume',
+      'sellVolume', 'midVolume', 'netVolume', 'biggestSingleTrade'],
+      'flow/options/summary');
+  });
+
+  itest('flowOptionBlocks — envelope (+ block fields when present)', async () => {
+    const r = await fa!.flowOptionBlocks(FLOW_SYM, { minSize: 50 });
+    reqFields(r, ['symbol', 'minSize', 'count', 'blocks'],
+      'flow/options/blocks');
+    const blocks = (r as { blocks?: unknown[] }).blocks ?? [];
+    if (blocks.length) {
+      reqFields(blocks[0], ['ts', 'expiry', 'strike', 'right', 'price',
+        'size', 'side'], 'flow/options/blocks.blocks[0]');
+    }
+  });
+
+  itest('flowOptionHistory — envelope (+ bucket fields when present)', async () => {
+    const r = await fa!.flowOptionHistory(FLOW_SYM, { minutes: 30 });
+    reqFields(r, ['symbol', 'minutes', 'count', 'buckets'],
+      'flow/options/history');
+    const buckets = (r as { buckets?: unknown[] }).buckets ?? [];
+    if (buckets.length) {
+      reqFields(buckets[0], ['ts', 'buyVolume', 'sellVolume', 'midVolume',
+        'netVolume', 'tradeCount', 'biggestTrade', 'vwap', 'high', 'low'],
+        'flow/options/history.buckets[0]');
+    }
+  });
+
+  itest('flowOptionCumulative — envelope (+ point fields when present)', async () => {
+    const r = await fa!.flowOptionCumulative(FLOW_SYM, { minutes: 60 });
+    reqFields(r, ['symbol', 'minutes', 'count', 'points'],
+      'flow/options/cumulative');
+    const points = (r as { points?: unknown[] }).points ?? [];
+    if (points.length) {
+      reqFields(points[0], ['ts', 'netVolume', 'cumulative', 'vwap',
+        'tradeCount'], 'flow/options/cumulative.points[0]');
+    }
+  });
+
+  itest('flowStockRecent — envelope (+ trade fields when present)', async () => {
+    const r = await fa!.flowStockRecent(FLOW_SYM, { limit: 5 });
+    reqFields(r, ['symbol', 'count', 'totalAvailable', 'trades'],
+      'flow/stocks/recent');
+    const trades = (r as { trades?: unknown[] }).trades ?? [];
+    if (trades.length) {
+      reqFields(trades[0], ['ts', 'price', 'size', 'side', 'isBlock', 'bid',
+        'ask'], 'flow/stocks/recent.trades[0]');
+    }
+  });
+
+  itest('flowStockSummary — all contract fields present', async () => {
+    const r = await fa!.flowStockSummary(FLOW_SYM);
+    reqFields(r, ['symbol', 'totalTrades', 'buyVolume', 'sellVolume',
+      'midVolume', 'netVolume', 'biggestSingleTrade'], 'flow/stocks/summary');
+  });
+
+  itest('flowStockBlocks — envelope (+ block fields when present)', async () => {
+    const r = await fa!.flowStockBlocks(FLOW_SYM, { minSize: 1000 });
+    reqFields(r, ['symbol', 'minSize', 'count', 'blocks'],
+      'flow/stocks/blocks');
+    const blocks = (r as { blocks?: unknown[] }).blocks ?? [];
+    if (blocks.length) {
+      reqFields(blocks[0], ['ts', 'price', 'size', 'side', 'bid', 'ask'],
+        'flow/stocks/blocks.blocks[0]');
+    }
+  });
+
+  itest('flowStockHistory — envelope (+ bucket fields when present)', async () => {
+    const r = await fa!.flowStockHistory(FLOW_SYM, { minutes: 30 });
+    reqFields(r, ['symbol', 'minutes', 'count', 'buckets'],
+      'flow/stocks/history');
+    const buckets = (r as { buckets?: unknown[] }).buckets ?? [];
+    if (buckets.length) {
+      reqFields(buckets[0], ['ts', 'buyVolume', 'sellVolume', 'midVolume',
+        'netVolume', 'tradeCount', 'biggestTrade', 'vwap', 'open', 'close',
+        'high', 'low'], 'flow/stocks/history.buckets[0]');
+    }
+  });
+
+  itest('flowStockCumulative — envelope (+ point fields when present)', async () => {
+    const r = await fa!.flowStockCumulative(FLOW_SYM, { minutes: 60 });
+    reqFields(r, ['symbol', 'minutes', 'count', 'points'],
+      'flow/stocks/cumulative');
+    const points = (r as { points?: unknown[] }).points ?? [];
+    if (points.length) {
+      reqFields(points[0], ['ts', 'netVolume', 'cumulative', 'vwap',
+        'tradeCount'], 'flow/stocks/cumulative.points[0]');
+    }
+  });
+
+  itest('flowOptionsLeaderboard — envelope (+ row fields when present)', async () => {
+    const r = await fa!.flowOptionsLeaderboard({ n: 3 });
+    reqFields(r, ['generatedUtc', 'n', 'windowMinutes', 'buyers', 'sellers'],
+      'flow/options/leaderboard');
+    const rows = [
+      ...((r as { buyers?: unknown[] }).buyers ?? []),
+      ...((r as { sellers?: unknown[] }).sellers ?? []),
+    ];
+    if (rows.length) {
+      reqFields(rows[0], ['symbol', 'netVolume', 'netNotional', 'buyVolume',
+        'sellVolume', 'avgPremium', 'tradeCount', 'lastTradeUtc'],
+        'flow/options/leaderboard.row');
+    }
+  });
+
+  itest('flowOptionsOutliers — envelope (+ row fields when present)', async () => {
+    const r = await fa!.flowOptionsOutliers({ limit: 3 });
+    reqFields(r, ['generatedUtc', 'windowMinutes', 'tracked', 'qualified',
+      'limit', 'outliers'], 'flow/options/outliers');
+    const outliers = (r as { outliers?: unknown[] }).outliers ?? [];
+    if (outliers.length) {
+      reqFields(outliers[0], ['symbol', 'tradeCount', 'buyVolume',
+        'sellVolume', 'midVolume', 'netVolume', 'imbalancePct', 'skew',
+        'notional', 'netNotional', 'biggestTrade', 'biggestTradeUtc',
+        'biggestAgeSec', 'lastVwap', 'lastTradeUtc', 'lastTradeAgeSec'],
+        'flow/options/outliers.outliers[0]');
+    }
+  });
+
+  itest('flowStocksLeaderboard — envelope (+ row fields when present)', async () => {
+    const r = await fa!.flowStocksLeaderboard({ n: 3 });
+    reqFields(r, ['generatedUtc', 'n', 'windowMinutes', 'buyers', 'sellers'],
+      'flow/stocks/leaderboard');
+    const rows = [
+      ...((r as { buyers?: unknown[] }).buyers ?? []),
+      ...((r as { sellers?: unknown[] }).sellers ?? []),
+    ];
+    if (rows.length) {
+      reqFields(rows[0], ['symbol', 'netVolume', 'netNotional', 'buyVolume',
+        'sellVolume', 'vwap', 'tradeCount', 'lastTradeUtc'],
+        'flow/stocks/leaderboard.row');
+    }
+  });
+
+  itest('flowStocksOutliers — envelope (+ row fields when present)', async () => {
+    const r = await fa!.flowStocksOutliers({ limit: 3 });
+    reqFields(r, ['generatedUtc', 'windowMinutes', 'tracked', 'qualified',
+      'limit', 'outliers'], 'flow/stocks/outliers');
+    const outliers = (r as { outliers?: unknown[] }).outliers ?? [];
+    if (outliers.length) {
+      reqFields(outliers[0], ['symbol', 'tradeCount', 'buyVolume',
+        'sellVolume', 'midVolume', 'netVolume', 'imbalancePct', 'skew',
+        'notional', 'netNotional', 'biggestTrade', 'biggestTradeUtc',
+        'biggestAgeSec', 'lastVwap', 'lastTradeUtc', 'lastTradeAgeSec'],
+        'flow/stocks/outliers.outliers[0]');
+    }
   });
 });

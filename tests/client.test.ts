@@ -663,21 +663,6 @@ describe('zeroDte()', () => {
   });
 });
 
-describe('exposureHistory()', () => {
-  it('returns history without params', async () => {
-    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY', history: [] });
-    await makeClient(fetchFn).exposureHistory('SPY');
-    expect(getCalledUrl(calls).pathname).toBe('/v1/exposure/history/SPY');
-    expect(getCalledUrl(calls).search).toBe('');
-  });
-
-  it('sends days param', async () => {
-    const { fetchFn, calls } = makeMockFetch(200, {});
-    await makeClient(fetchFn).exposureHistory('SPY', { days: 30 });
-    expect(getCalledUrl(calls).searchParams.get('days')).toBe('30');
-  });
-});
-
 // ── Pricing & Sizing ──────────────────────────────────────────────────────────
 
 describe('greeks()', () => {
