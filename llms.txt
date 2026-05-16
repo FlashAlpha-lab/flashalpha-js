@@ -74,6 +74,24 @@ console.log(summary.regime, summary.gamma_flip);
 - `screener(opts)` — filter/rank symbols by GEX, VRP, IV, greeks,
   harvest scores, or custom formulas (Growth+).
 
+### Flow — live, simulation-aware (Alpha+)
+
+Intraday trade-tape-adjusted dealer exposure plus the raw options/stock
+flow feed — 22 methods under `/v1/flow/*`:
+
+- **Analytics**: `flowLevels`, `flowPinRisk`, `flowSummary`, `flowOi`,
+  `flowGex`, `flowDex`, `flowDealerRisk`, `flowLive` — live gamma flip /
+  call & put walls / max pain, 0DTE pin score, flow direction + headline
+  GEX shift, OI simulator state, flow-adjusted GEX/DEX per strike,
+  settled-vs-live dealer risk, and an everything-at-once bundle. Optional
+  `{ expiry }` slice.
+- **Raw flow**: `flowOptionRecent` / `flowOptionSummary` /
+  `flowOptionBlocks` / `flowOptionHistory` / `flowOptionCumulative`, the
+  `flowStock*` equivalents, and cross-symbol `flowOptionsLeaderboard` /
+  `flowOptionsOutliers` / `flowStocksLeaderboard` / `flowStocksOutliers`
+  — per-trade prints, large blocks, per-minute buckets, cumulative
+  net-flow series, ranked leaderboards / outliers.
+
 Full method list with parameters lives in the
 [README](https://github.com/FlashAlpha-lab/flashalpha-js).
 
@@ -90,10 +108,10 @@ FlashAlpha has four tiers — every endpoint declares its minimum tier:
   `surface`, `gex`, `dex`, `vex`, `chex`, `greeks`, `iv`, `account`).
 - **Basic+**: adds `maxPain`.
 - **Growth+**: adds `exposureSummary`, `exposureLevels`, `narrative`,
-  `zeroDte`, `exposureHistory`, `optionQuote`, `volatility`, `kelly`,
-  `screener`.
+  `zeroDte`, `optionQuote`, `volatility`, `kelly`, `screener`.
 - **Alpha+**: adds `vrp`, `advVolatility` (SVI calibration, variance
-  surface, arbitrage detection).
+  surface, arbitrage detection), and the full `flow*` tier (22
+  simulation-aware + raw options/stock flow endpoints).
 
 Pricing and tier comparison: https://flashalpha.com.
 
