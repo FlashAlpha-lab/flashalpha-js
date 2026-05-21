@@ -77,7 +77,7 @@ console.log(summary.regime, summary.gamma_flip);
 ### Flow — live, simulation-aware (Alpha+)
 
 Intraday trade-tape-adjusted dealer exposure plus the raw options/stock
-flow feed — 22 methods under `/v1/flow/*`:
+flow feed — 24 methods under `/v1/flow/*`:
 
 - **Analytics**: `flowLevels`, `flowPinRisk`, `flowSummary`, `flowOi`,
   `flowGex`, `flowDex`, `flowDealerRisk`, `flowLive` — live gamma flip /
@@ -85,6 +85,11 @@ flow feed — 22 methods under `/v1/flow/*`:
   GEX shift, OI simulator state, flow-adjusted GEX/DEX per strike,
   settled-vs-live dealer risk, and an everything-at-once bundle. Optional
   `{ expiry }` slice.
+- **Unusual-flow signals**: `flowSignals` / `flowSignalsSummary` —
+  scored, classified per-print signals (block/sweep, NBBO aggressor,
+  opening/closing bias, intent) with a 0-100 composite score,
+  chain-context enrichment, and a net bullish/bearish + opening/closing
+  premium roll-up.
 - **Raw flow**: `flowOptionRecent` / `flowOptionSummary` /
   `flowOptionBlocks` / `flowOptionHistory` / `flowOptionCumulative`, the
   `flowStock*` equivalents, and cross-symbol `flowOptionsLeaderboard` /
@@ -110,8 +115,8 @@ FlashAlpha has four tiers — every endpoint declares its minimum tier:
 - **Growth+**: adds `exposureSummary`, `exposureLevels`, `narrative`,
   `zeroDte`, `optionQuote`, `volatility`, `kelly`, `screener`.
 - **Alpha+**: adds `vrp`, `advVolatility` (SVI calibration, variance
-  surface, arbitrage detection), and the full `flow*` tier (22
-  simulation-aware + raw options/stock flow endpoints).
+  surface, arbitrage detection), and the full `flow*` tier (24
+  simulation-aware + signals + raw options/stock flow endpoints).
 
 Pricing and tier comparison: https://flashalpha.com.
 

@@ -100,6 +100,8 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `flowDex(symbol, opts?)` | Live (flow-adjusted) DEX + per-strike profile |
 | `flowDealerRisk(symbol, opts?)` | Settled-vs-live dealer GEX/DEX + flow adjustment |
 | `flowLive(symbol, opts?)` | Everything-at-once live flow bundle |
+| `flowSignals(symbol, opts?)` | Scored, classified unusual-flow feed (block/sweep, intent, 0-100 score) |
+| `flowSignalsSummary(symbol, opts?)` | Net bullish/bearish + opening/closing premium roll-up + top 10 signals |
 | `flowOptionRecent(symbol, opts?)` | Recent option trades, newest-first |
 | `flowOptionSummary(symbol, opts?)` | Per-underlying option-flow aggregates |
 | `flowOptionBlocks(symbol, opts?)` | Large option prints (`size >= minSize`) |

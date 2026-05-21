@@ -2855,3 +2855,207 @@ export interface FlowStockOutliersResponse {
   /** Imbalance-ranked flagged symbols. */
   outliers?: FlowOutlierRow[];
 }
+
+// ── Flow signals (unusual-flow feed, Alpha+) ──────────────────────────────
+//
+// Per-underlying scored/classified unusual-flow signals. Snake_case wire
+// shape (analytics family). Both endpoints reuse `FlowSignal`.
+
+/**
+ * Settled-chain reference levels echoed alongside the signals. Computed
+ * once per request from the settled snapshot — independent of the live
+ * flow surface. All fields are `null` when the chain snapshot is
+ * unavailable.
+ */
+export interface FlowSignalsChain {
+  /** Strike with the largest settled call GEX — upside dealer-defended level. */
+  call_wall?: number | null;
+  /** Strike with the largest settled put GEX — downside dealer-defended level. */
+  put_wall?: number | null;
+  /** Strike where total option-holder loss is maximized at expiry. */
+  max_pain?: number | null;
+  /** Settled gamma-flip strike (sign change of net GEX across the chain). */
+  gamma_flip?: number | null;
+}
+
+/**
+ * Component contributions that sum to the headline `score`. Weights are
+ * server-tunable so absolute values may shift, but the ordering of
+ * components is stable.
+ */
+export interface FlowSignalScoreBreakdown {
+  /** Premium-size contribution (the larger the dollar premium, the more points). */
+  premium?: number;
+  /** Print size relative to the contract's open interest. */
+  size_vs_oi?: number;
+  /** NBBO aggressor strength — above-ask / at-ask earn more than mid. */
+  aggressor?: number;
+  /** Sweep boost (≥2 same-side prints on one contract within ~500ms). */
+  sweep?: number;
+  /** OI-simulator opening-bias contribution. */
+  opening_bias?: number;
+  /** Tenor (DTE) contribution — short-dated prints score differently than long-dated. */
+  tenor?: number;
+}
+
+/**
+ * Chain-derived context attached to a signal. All numeric fields are
+ * `null` and `moneyness` is `"unknown"` when the contract isn't in the
+ * settled chain snapshot.
+ */
+export interface FlowSignalEnrichment {
+  /** Contract implied vol (decimal, e.g. `0.62` = 62%). */
+  iv?: number | null;
+  /** Contract delta (signed; positive for calls, negative for puts). */
+  delta?: number | null;
+  /** Contract gamma (per-share). */
+  gamma?: number | null;
+  /** IV minus the nearest ATM IV (signed). */
+  iv_vs_atm?: number | null;
+  /** `"OTM"` / `"ATM"` / `"ITM"` / `"unknown"`. */
+  moneyness?: string;
+  /** Estimated dollar delta-notional of this print. */
+  estimated_delta_notional?: number | null;
+  /**
+   * Standalone gamma-$ this print would add if it were opening and
+   * fully dealer-absorbed. **Not** applied to the live chain — don't
+   * sum it against `/v1/flow/gex`.
+   */
+  hypothetical_gex_impact_if_opening?: number | null;
+}
+
+/**
+ * One scored unusual-flow signal — a coalesced view of one notable
+ * (block-sized) print on a single contract. Same shape across
+ * `/v1/flow/signals/{symbol}` and the `top_signals` array of
+ * `/v1/flow/signals/{symbol}/summary`.
+ */
+export interface FlowSignal {
+  /** Trade timestamp (ISO-8601 UTC). */
+  ts?: string;
+  /** Contract expiry (`YYYY-MM-DD`). */
+  expiry?: string;
+  /** Contract strike price. */
+  strike?: number;
+  /** `"C"` (call) or `"P"` (put). */
+  right?: string;
+  /**
+   * Upstream buy/sell/mid aggressor classification (distinct from the
+   * NBBO `aggressor` label).
+   */
+  side?: string;
+  /** Trade price. */
+  price?: number;
+  /** Trade size in contracts. */
+  size?: number;
+  /** Dollar premium of this print: `price * size * 100`. */
+  premium?: number;
+  /** Days to expiry at trade time. */
+  dte?: number;
+  /**
+   * `"block"` (lone block-sized print) or `"sweep"` (≥2 same-side
+   * prints on one contract within ~500ms).
+   */
+  structure?: string;
+  /**
+   * NBBO position at trade: `"above_ask"` / `"at_ask"` / `"mid"` /
+   * `"at_bid"` / `"below_bid"`.
+   */
+  aggressor?: string;
+  /**
+   * Contract-level OI-simulator inference: `"opening_bias"` /
+   * `"closing_bias"` / `"unknown"`. Not a per-print label.
+   */
+  open_close_bias?: string;
+  /** Simulator confidence weight for the bias above. */
+  open_close_confidence?: number;
+  /**
+   * Signed simulator estimate of contracts opened (+) or closed (−)
+   * today on this contract.
+   */
+  contract_net_oi_delta?: number;
+  /**
+   * `"bullish"` / `"bearish"` / `"neutral"`. Neutral whenever
+   * `open_close_bias === "closing_bias"` (can't attribute on unwinds)
+   * or `side === "mid"`.
+   */
+  intent?: string;
+  /** 0–100 composite (components sum to this). */
+  score?: number;
+  /** `"low"` / `"medium"` / `"high"`. */
+  conviction?: string;
+  /**
+   * Subset of `"sweep"`, `"block"`, `"opening"`, `"closing"`, `"0dte"`,
+   * `"whale"` (premium ≥ $1M), `"golden"` (top decile in this response
+   * set *and* score ≥ 70 absolute).
+   */
+  tags?: string[];
+  /** Score components — sum to {@link FlowSignal.score}. */
+  score_breakdown?: FlowSignalScoreBreakdown;
+  /** Chain-derived context (greeks, moneyness, est. delta-notional). */
+  enrichment?: FlowSignalEnrichment;
+}
+
+/**
+ * Scored, classified unusual-flow feed from
+ * `GET /v1/flow/signals/{symbol}`. Requires the Alpha plan.
+ *
+ * Each notable print in the look-back window is coalesced into a
+ * signal, scored 0–100, and ranked highest score first.
+ */
+export interface FlowSignalsResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Look-back window applied (minutes). */
+  window_minutes?: number;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /** Settled-chain reference levels (computed once per request). */
+  chain?: FlowSignalsChain;
+  /** Number of signals returned (after server-side filtering). */
+  count?: number;
+  /** Signals, highest score first. */
+  signals?: FlowSignal[];
+}
+
+/**
+ * Net-directional roll-up from
+ * `GET /v1/flow/signals/{symbol}/summary`. Requires the Alpha plan.
+ *
+ * Sums classified premium across the window into bullish/bearish and
+ * opening/closing buckets — a cheap "smart-money tilt" read for one
+ * underlying.
+ */
+export interface FlowSignalsSummaryResponse {
+  /** Underlying ticker echoed from the request path. */
+  symbol?: string;
+  /** Timestamp this snapshot was computed for (ISO-8601 UTC). */
+  as_of?: string;
+  /** Look-back window applied (minutes). */
+  window_minutes?: number;
+  /** Expiration filter echoed back, or `null`. */
+  expiry?: string | null;
+  /** Spot mid at the snapshot time. */
+  underlying_price?: number | null;
+  /**
+   * Total signal count in the window (full count, not the
+   * `top_signals` length).
+   */
+  signal_count?: number;
+  /** Sum of signal premium with `intent === "bullish"`. */
+  bullish_premium?: number;
+  /** Sum of signal premium with `intent === "bearish"`. */
+  bearish_premium?: number;
+  /** `bullish_premium - bearish_premium`. */
+  net_directional_premium?: number;
+  /** Sum of signal premium with `open_close_bias === "opening_bias"`. */
+  opening_premium?: number;
+  /** Sum of signal premium with `open_close_bias === "closing_bias"`. */
+  closing_premium?: number;
+  /** Highest-scoring signals (≤ 10). Same shape as `FlowSignal`. */
+  top_signals?: FlowSignal[];
+}

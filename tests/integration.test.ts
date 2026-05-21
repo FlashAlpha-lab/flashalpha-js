@@ -1956,4 +1956,44 @@ describe('FlashAlpha Integration Tests (live API)', () => {
         'flow/stocks/outliers.outliers[0]');
     }
   });
+
+  const SIGNAL_FIELDS = ['ts', 'expiry', 'strike', 'right', 'side', 'price',
+    'size', 'premium', 'dte', 'structure', 'aggressor', 'open_close_bias',
+    'open_close_confidence', 'contract_net_oi_delta', 'intent', 'score',
+    'conviction', 'tags', 'score_breakdown', 'enrichment'];
+
+  itest('flowSignals — envelope (+ signal fields when present)', async () => {
+    const r = await fa!.flowSignals(FLOW_SYM, { windowMinutes: 240, limit: 10 });
+    reqFields(r, ['symbol', 'as_of', 'window_minutes', 'expiry',
+      'underlying_price', 'chain', 'count', 'signals'], 'flow/signals');
+    expect((r as { symbol?: string }).symbol).toBe(FLOW_SYM);
+    const chain = (r as { chain?: unknown }).chain;
+    reqFields(chain, ['call_wall', 'put_wall', 'max_pain', 'gamma_flip'],
+      'flow/signals.chain');
+    const signals = (r as { signals?: unknown[] }).signals ?? [];
+    if (signals.length) {
+      reqFields(signals[0], SIGNAL_FIELDS, 'flow/signals.signals[0]');
+      const s = signals[0] as { score_breakdown?: unknown; enrichment?: unknown };
+      reqFields(s.score_breakdown, ['premium', 'size_vs_oi', 'aggressor',
+        'sweep', 'opening_bias', 'tenor'],
+        'flow/signals.signals[0].score_breakdown');
+      reqFields(s.enrichment, ['iv', 'delta', 'gamma', 'iv_vs_atm',
+        'moneyness', 'estimated_delta_notional',
+        'hypothetical_gex_impact_if_opening'],
+        'flow/signals.signals[0].enrichment');
+    }
+  });
+
+  itest('flowSignalsSummary — envelope (+ top_signal fields when present)', async () => {
+    const r = await fa!.flowSignalsSummary(FLOW_SYM, { windowMinutes: 240 });
+    reqFields(r, ['symbol', 'as_of', 'window_minutes', 'expiry',
+      'underlying_price', 'signal_count', 'bullish_premium',
+      'bearish_premium', 'net_directional_premium', 'opening_premium',
+      'closing_premium', 'top_signals'], 'flow/signals/summary');
+    expect((r as { symbol?: string }).symbol).toBe(FLOW_SYM);
+    const top = (r as { top_signals?: unknown[] }).top_signals ?? [];
+    if (top.length) {
+      reqFields(top[0], SIGNAL_FIELDS, 'flow/signals/summary.top_signals[0]');
+    }
+  });
 });

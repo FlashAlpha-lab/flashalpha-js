@@ -36,6 +36,8 @@ import type {
   FlowOptionRecentResponse,
   FlowOptionSummaryResponse,
   FlowPinRiskResponse,
+  FlowSignalsResponse,
+  FlowSignalsSummaryResponse,
   FlowStockBlocksResponse,
   FlowStockCumulativeResponse,
   FlowStockHistoryResponse,
@@ -147,6 +149,30 @@ export interface FlowOutliersOptions {
   minTrades?: number;
   /** Aggregation window in minutes (1–10080). */
   windowMinutes?: number;
+}
+
+/** Options for the per-symbol `flow/signals` feed. */
+export interface FlowSignalsOptions {
+  /** Drop signals below this score (0–100). */
+  minScore?: number;
+  /** Filter to `bullish` / `bearish` / `neutral`. */
+  intent?: 'bullish' | 'bearish' | 'neutral';
+  /** Filter to `block` / `sweep`. */
+  structure?: 'block' | 'sweep';
+  /** Look-back window in minutes (1–10080, default 240). */
+  windowMinutes?: number;
+  /** Max signals returned (1–500, default 50). */
+  limit?: number;
+  /** Slice the chain to one expiration cycle (`YYYY-MM-DD`). */
+  expiry?: string;
+}
+
+/** Options for the per-symbol `flow/signals/{symbol}/summary` roll-up. */
+export interface FlowSignalsSummaryOptions {
+  /** Look-back window in minutes (1–10080, default 240). */
+  windowMinutes?: number;
+  /** Slice the chain to one expiration cycle (`YYYY-MM-DD`). */
+  expiry?: string;
 }
 
 export interface OptionQuoteOptions {
@@ -676,6 +702,38 @@ export class FlashAlpha {
     if (options.minTrades !== undefined) params['minTrades'] = options.minTrades;
     if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
     return this._get('/v1/flow/stocks/outliers', Object.keys(params).length ? params : undefined) as Promise<FlowStockOutliersResponse>;
+  }
+
+  // Flow signals (unusual-flow feed, Alpha+).
+
+  /**
+   * Scored unusual-flow feed for one underlying. Requires Alpha.
+   *
+   * Each notable print is coalesced into a signal, classified
+   * (block/sweep, NBBO aggressor, opening/closing bias, intent), and
+   * scored 0–100 with a transparent component breakdown. Ranked
+   * highest score first.
+   */
+  async flowSignals(symbol: string, options: FlowSignalsOptions = {}): Promise<FlowSignalsResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.minScore !== undefined) params['minScore'] = options.minScore;
+    if (options.intent) params['intent'] = options.intent;
+    if (options.structure) params['structure'] = options.structure;
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/signals/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<FlowSignalsResponse>;
+  }
+
+  /**
+   * Net bullish/bearish + opening/closing premium roll-up plus the top
+   * 10 signals. Cheap "smart-money tilt" read. Requires Alpha.
+   */
+  async flowSignalsSummary(symbol: string, options: FlowSignalsSummaryOptions = {}): Promise<FlowSignalsSummaryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(`/v1/flow/signals/${_seg(symbol)}/summary`, Object.keys(params).length ? params : undefined) as Promise<FlowSignalsSummaryResponse>;
   }
 
   // ── Pricing & Sizing ──────────────────────────────────────────────────────
