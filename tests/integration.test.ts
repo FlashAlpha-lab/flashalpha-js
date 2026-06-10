@@ -1996,4 +1996,57 @@ describe('FlashAlpha Integration Tests (live API)', () => {
       reqFields(top[0], SIGNAL_FIELDS, 'flow/signals/summary.top_signals[0]');
     }
   });
+
+  // ── Volatility: realized & forecast (Alpha+) ──────────────────────────────
+
+  itest('realizedVolatility("SPY") — estimators with rv10/rv20/rv30 windows', async () => {
+    const r = await fa!.realizedVolatility('SPY');
+    reqFields(r, ['symbol', 'as_of', 'underlying_price', 'estimators'],
+      'volatility/realized');
+    expect((r as { symbol?: string }).symbol).toBe('SPY');
+    const est = (r as { estimators?: Record<string, unknown> }).estimators ?? {};
+    reqFields(est, ['close_to_close', 'parkinson', 'garman_klass',
+      'rogers_satchell', 'yang_zhang'], 'volatility/realized.estimators');
+    // Every estimator window exposes the 10/20/30-day fields.
+    for (const k of ['close_to_close', 'parkinson', 'garman_klass',
+      'rogers_satchell', 'yang_zhang']) {
+      reqFields(est[k], ['rv10', 'rv20', 'rv30'],
+        `volatility/realized.estimators.${k}`);
+    }
+  });
+
+  itest('volatilityForecast("SPY") — EWMA / HAR-RV / GARCH blocks', async () => {
+    const r = await fa!.volatilityForecast('SPY');
+    reqFields(r, ['symbol', 'as_of', 'ewma', 'har_rv', 'garch'],
+      'volatility/forecast');
+    expect((r as { symbol?: string }).symbol).toBe('SPY');
+    const f = r as {
+      ewma?: unknown;
+      har_rv?: { components?: unknown };
+      garch?: { params?: unknown; forecast?: unknown[] | null };
+    };
+    reqFields(f.ewma, ['lambda', 'vol_annualized', 'next_day_forecast'],
+      'volatility/forecast.ewma');
+    reqFields(f.har_rv, ['vol_annualized', 'components', 'next_day_forecast'],
+      'volatility/forecast.har_rv');
+    reqFields(f.har_rv?.components, ['daily', 'weekly', 'monthly'],
+      'volatility/forecast.har_rv.components');
+    reqFields(f.garch, ['model', 'distribution', 'params', 'persistence',
+      'long_run_vol_annualized', 'half_life_days', 'converged', 'forecast'],
+      'volatility/forecast.garch');
+    reqFields(f.garch?.params, ['omega', 'alpha', 'beta'],
+      'volatility/forecast.garch.params');
+    const pts = f.garch?.forecast ?? [];
+    if (Array.isArray(pts) && pts.length) {
+      reqFields(pts[0], ['horizon_days', 'vol_annualized'],
+        'volatility/forecast.garch.forecast[0]');
+    }
+  });
+
+  itest('volatilityForecast("AAPL", { dist: "gaussian" }) — honors dist param', async () => {
+    const r = await fa!.volatilityForecast('AAPL', { dist: 'gaussian' });
+    reqFields(r, ['symbol', 'as_of', 'ewma', 'har_rv', 'garch'],
+      'volatility/forecast(gaussian)');
+    expect((r as { symbol?: string }).symbol).toBe('AAPL');
+  });
 });
