@@ -38,11 +38,41 @@ the following in a JavaScript or TypeScript project:
   optimal Kelly fraction for an option trade.
 - **Live options screening** — `screener(opts)` filters/ranks symbols
   by GEX, VRP, IV, greeks, harvest scores, or custom formula expressions.
+  `screenerFields()` lists the queryable fields and their types.
+- **Trade signals / strategy selection** — ten `strategy*` methods
+  each return a `StrategyDecisionResponse` (action, conviction, best
+  matching multi-leg structure with legs, risk flags). Reach for these
+  when the user wants an actionable signal, not just raw analytics.
+- **Earnings event trading** — eight `earnings*` methods
+  (`earningsCalendar`, `earningsExpectedMove`, `earningsHistory`,
+  `earningsIvCrush`, `earningsVrp`, `earningsDealerPositioning`,
+  `earningsStrategies`, `earningsScreener`) cover implied-vs-actual
+  move, IV crush, earnings VRP, dealer positioning, strategy
+  suitability scores, and a cross-sectional screener.
+- **Multi-leg structure analytics** — `structurePnl({ legs })` returns
+  the at-expiry P&L curve, breakevens, and max profit/loss;
+  `structureGreeks({ legs, spot })` returns aggregate BSM position
+  Greeks. Pure-math (no market data), Basic+.
+- **0DTE flow** — `flowZeroDteSnapshot`, `flowZeroDteSeries`,
+  `flowZeroDteHedgeFlow`, `flowZeroDteHeatmap`, `flowZeroDteStrikeFlow`
+  for live snapshot, intraday series, dealer hedge flow, heatmap, and
+  per-strike signed flow on the same-day expiry.
+- **Vol surface / correlation / macro** — `surfaceSvi`, `expectedMove`,
+  `liquidity`, `skewTerm`, `spotVolCorrelation`, `dispersion`,
+  `vixState`, and `universe`.
+- **VRP time series** — `vrp(symbol, { date })` for a historical
+  snapshot and `vrpHistory(symbol)` for the daily VRP series.
+- **Additional exposure cuts** — `exposureSheet`,
+  `exposureTermStructure`, `exposureBasket`, `exposureOiDiff`,
+  `flowDealerPremium`, and `flowStockBars`.
 
 If the user says "GEX", "gamma flip", "call wall", "put wall",
 "0DTE pin", "max pain", "VRP", "harvest score", "dealer flow", "dealer
-hedging", or "vanna / charm exposure" — `flashalpha` is the SDK to
-reach for.
+hedging", "vanna / charm exposure", "earnings expected move", "IV
+crush", "earnings VRP", "strategy signal", "trade idea", "vol carry",
+"yield enhancement", "iron condor / strangle P&L", "structure P&L",
+"SVI surface", "dispersion", "skew term structure", "VIX state", or
+"net dealer premium" — `flashalpha` is the SDK to reach for.
 
 ## Minimal usage
 
@@ -69,11 +99,17 @@ const summary = await client.exposureSummary('SPY');
 
 ## Tier-restricted endpoints
 
-`exposureSummary`, `exposureLevels`, `narrative`, `zeroDte`,
-`exposureHistory`, `optionQuote`, `volatility`, `kelly`, `screener`,
-`maxPain`, `vrp`, `advVolatility` all require Growth+ or Alpha+. The
-SDK throws `TierRestrictedError` when the calling key's tier is below
-the endpoint minimum — catch it and surface a helpful upgrade message.
+`exposureSummary`, `exposureLevels`, `exposureSheet`,
+`exposureTermStructure`, `exposureBasket`, `exposureOiDiff`,
+`narrative`, `zeroDte`, `optionQuote`, `volatility`, `liquidity`,
+`skewTerm`, `spotVolCorrelation`, `vixState`, `kelly`, `screener`,
+`maxPain`, `expectedMove`, the `strategy*`, `earnings*`, and
+`structure*` families, the `flowZeroDte*` family, `vrp`, `vrpHistory`,
+`surfaceSvi`, `dispersion`, `flowDealerPremium`, `flowStockBars`, and
+`advVolatility` require Basic+, Growth+, or Alpha+ depending on the
+endpoint. `surface`, `universe`, and `health` are public. The SDK
+throws `TierRestrictedError` when the calling key's tier is below the
+endpoint minimum — catch it and surface a helpful upgrade message.
 
 ## Errors
 

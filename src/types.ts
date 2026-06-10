@@ -3059,3 +3059,1248 @@ export interface FlowSignalsSummaryResponse {
   /** Highest-scoring signals (≤ 10). Same shape as `FlowSignal`. */
   top_signals?: FlowSignal[];
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  v1.1 endpoints — Strategy Signals, Earnings, Structures, Zero-DTE Flow,
+//  expected-move, dispersion, liquidity, skew-term, spot-vol-correlation,
+//  vix-state, universe, surface/svi, exposure sheet/term-structure/basket,
+//  oi-diff, dealer-premium, vrp history, flow stock bars, screener fields.
+//
+//  Every numeric field is `| null` because the API returns `null` for any
+//  value it can't compute; `?:` marks members absent on degraded/fallback
+//  payloads. These are pure types — zero runtime cost.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Strategy Signals (shared envelope) ──────────────────────────────────────
+
+/** A single leg inside a candidate strategy structure. */
+export interface StrategyStructureLeg {
+  /** `"sell"` (write) or `"buy"` (own). */
+  action?: string;
+  /** `"put"` or `"call"`. */
+  type?: string;
+  strike?: number | null;
+  /** Per-leg delta (signed). */
+  delta?: number | null;
+  /** Per-contract premium. */
+  premium?: number | null;
+  quantity?: number | null;
+}
+
+/** A ranked tradeable structure proposed by a strategy endpoint. */
+export interface StrategyBestStructure {
+  rank?: number;
+  /** e.g. `"short_put_spread"`, `"iron_fly"`, `"iron_condor"`. */
+  structure?: string;
+  expiry?: string | null;
+  legs?: StrategyStructureLeg[];
+  /** Net credit collected, or `null` for a debit structure. */
+  credit?: number | null;
+  /** Net debit paid, or `null` for a credit structure. */
+  debit?: number | null;
+  max_profit?: number | null;
+  max_loss?: number | null;
+  breakevens?: number[];
+  /** 0–100 edge score for this structure. */
+  edge_score?: number | null;
+  /** 0–1 liquidity score. */
+  liquidity_score?: number | null;
+}
+
+/** A risk callout attached to a strategy decision. */
+export interface StrategyRiskFlag {
+  /** `"low"` / `"medium"` / `"high"`. */
+  severity?: string;
+  /** Machine code, e.g. `"EARNINGS_BEFORE_EXPIRY"`. */
+  code?: string;
+  message?: string;
+}
+
+/** Input-quality gate for a strategy decision. */
+export interface StrategyDataQuality {
+  /** 0–100 data-quality score. Gate on this before acting. */
+  score?: number | null;
+  warnings?: string[];
+}
+
+/**
+ * Uniform decision envelope returned by every `GET /v1/strategies/*`
+ * endpoint. Only `metrics` and `regime` change between strategies — every
+ * other field has a fixed shape.
+ *
+ * `decision` is one of `insufficient_data` / `avoid` / `neutral` /
+ * `candidate`. Pure-signal strategies (skew, term-structure, tail-pricing)
+ * always return `neutral` with an empty `best_structures` array.
+ *
+ * @example
+ * const r = await fa.strategyFlowAnomaly('SPY');
+ * if (r.decision === 'candidate') console.log(r.best_structures?.[0]);
+ */
+export interface StrategyDecisionResponse {
+  /** Which strategy produced this result, e.g. `"flow_anomaly"`. */
+  strategy?: string;
+  /** Resolved, upper-cased underlying symbol. */
+  symbol?: string;
+  /** When the decision was built (ISO-8601 UTC). */
+  timestamp?: string;
+  /** `insufficient_data` | `avoid` | `neutral` | `candidate`. */
+  decision?: string;
+  /** 0–100 strategy score driving the decision band. */
+  score?: number | null;
+  /** 0–1 input-quality / sample-size weight. */
+  confidence?: number | null;
+  /** Strategy-specific regime label (vocabulary differs per endpoint). */
+  regime?: string;
+  /** Ranked candidate structures (empty for pure-signal strategies). */
+  best_structures?: StrategyBestStructure[];
+  /**
+   * Strategy-specific key/value bag. Keys vary per endpoint;
+   * `underlying_price` is always present.
+   */
+  metrics?: Record<string, unknown>;
+  /** Optional risk callouts (often empty). */
+  risk_flags?: StrategyRiskFlag[];
+  /** Human-readable rationale for the decision. */
+  why?: string[];
+  /** Conditions under which the read should be discarded. */
+  avoid_if?: string[];
+  /** Gate on this before trading. */
+  data_quality?: StrategyDataQuality;
+}
+
+/** Optional `expiry` filter shared by most strategy endpoints. */
+export interface StrategyExpiryOptions {
+  /** Restrict the analysis to a single expiry (`yyyy-MM-dd`). */
+  expiry?: string;
+}
+
+/** Options for `strategyExpiryPositioning`. */
+export interface StrategyExpiryPositioningOptions {
+  expiry?: string;
+  minOpenInterest?: number;
+  wingWidth?: number;
+}
+
+/** Options for `strategyZeroDte`. */
+export interface StrategyZeroDteOptions {
+  expiry?: string;
+  minOpenInterest?: number;
+  wingWidth?: number;
+}
+
+/** Options for `strategyVolCarry`. */
+export interface StrategyVolCarryOptions {
+  expiry?: string;
+  minOpenInterest?: number;
+  targetShortDelta?: number;
+  maxWidth?: number;
+  minCredit?: number;
+}
+
+/** Options for `strategyYieldEnhancement`. */
+export interface StrategyYieldEnhancementOptions {
+  expiry?: string;
+  targetDelta?: number;
+  minOpenInterest?: number;
+  /** `covered_call` (default) or `cash_secured_put`. */
+  structure?: 'covered_call' | 'cash_secured_put';
+  excludeEarningsBeforeExpiry?: boolean;
+}
+
+// ── Surface / SVI ────────────────────────────────────────────────────────────
+
+/** One calibrated SVI slice (per expiry). */
+export interface SurfaceSviSlice {
+  expiry?: string;
+  days_to_expiry?: number | null;
+  forward?: number | null;
+  /** Raw SVI parameters. */
+  a?: number | null;
+  b?: number | null;
+  rho?: number | null;
+  m?: number | null;
+  sigma?: number | null;
+  atm_total_variance?: number | null;
+  /** ATM implied vol as a percentage. */
+  atm_iv?: number | null;
+}
+
+/** Live SVI-fitted surface — `GET /v1/surface/svi/{symbol}`. Alpha+. */
+export interface SurfaceSviResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  market_open?: boolean;
+  /** Ordered by `days_to_expiry`. */
+  svi_parameters?: SurfaceSviSlice[];
+}
+
+// ── Expected move ────────────────────────────────────────────────────────────
+
+/** Per-expiry straddle-implied move (camelCase items, per the API). */
+export interface ExpectedMoveItem {
+  expiry?: string;
+  daysToExpiry?: number | null;
+  /** ATM implied vol as a decimal, or `null`. */
+  atmIv?: number | null;
+  /** 1-σ move in price terms. */
+  expectedMove?: number | null;
+  /** 1-σ move as a percentage of spot. */
+  expectedMovePct?: number | null;
+  lowerBound?: number | null;
+  upperBound?: number | null;
+}
+
+/** Straddle-implied expected move — `GET /v1/expected-move/{symbol}`. Basic+. */
+export interface ExpectedMoveResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  /** Ordered by expiry. */
+  expected_moves?: ExpectedMoveItem[];
+}
+
+/** Options for `expectedMove`. */
+export interface ExpectedMoveOptions {
+  /** Restrict to a single expiry (`yyyy-MM-dd`). */
+  expiry?: string;
+}
+
+// ── Exposure sheet ───────────────────────────────────────────────────────────
+
+export interface ExposureSheetTotals {
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+  /** Σ delta-adjusted gamma. */
+  net_dag?: number | null;
+}
+
+/** Line-in-the-Sand inflection strike. */
+export interface ExposureSheetLis {
+  strike?: number | null;
+  magnitude?: number | null;
+}
+
+/** A gamma peak (local maximum of `|net_gex|`). */
+export interface ExposureSheetPeak {
+  strike?: number | null;
+  net_gex?: number | null;
+  /** Fraction of max `|net_gex|` in the chain. */
+  strength?: number | null;
+  /** `"call_wall"` or `"put_wall"`. */
+  side?: string;
+}
+
+/** One per-strike row joining all greek exposures + DAG + OI. */
+export interface ExposureSheetStrike {
+  strike?: number | null;
+  call_gex?: number | null;
+  put_gex?: number | null;
+  net_gex?: number | null;
+  call_dex?: number | null;
+  put_dex?: number | null;
+  net_dex?: number | null;
+  call_vex?: number | null;
+  put_vex?: number | null;
+  net_vex?: number | null;
+  call_chex?: number | null;
+  put_chex?: number | null;
+  net_chex?: number | null;
+  dag?: number | null;
+  call_oi?: number | null;
+  put_oi?: number | null;
+}
+
+/** Unified per-strike exposure sheet — `GET /v1/exposure/sheet/{symbol}`. Growth+. */
+export interface ExposureSheetResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  expiration?: string | null;
+  is_opex?: boolean;
+  is_triple_witching?: boolean;
+  totals?: ExposureSheetTotals;
+  /** `null` when the chain has <3 strikes. */
+  lis?: ExposureSheetLis | null;
+  peaks?: ExposureSheetPeak[];
+  strikes?: ExposureSheetStrike[];
+}
+
+/** Options for `exposureSheet`. */
+export interface ExposureSheetOptions {
+  /** Single-expiry filter (`yyyy-MM-dd`); triggers OPEX flags. */
+  expiration?: string;
+  /** Drop strikes whose `call_oi + put_oi < min_oi`. */
+  minOi?: number;
+}
+
+// ── Exposure term-structure ──────────────────────────────────────────────────
+
+export interface ExposureTermStructureBucket {
+  /** e.g. `"0-7d"`, `"8-30d"`. */
+  bucket?: string;
+  /** Inclusive `[lower, upper]` DTE bounds. */
+  dte_range?: number[];
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+  contract_count?: number | null;
+}
+
+export interface ExposureTermStructureExpiry {
+  expiration?: string;
+  dte?: number | null;
+  is_opex?: boolean;
+  is_triple_witching?: boolean;
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+  /** This expiry's `|net_gex|` as a share of the chain (0-100). */
+  pct_of_chain_gex?: number | null;
+}
+
+/** Per-greek exposure by DTE bucket + per expiry — `GET /v1/exposure/term-structure/{symbol}`. Growth+. */
+export interface ExposureTermStructureResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  by_dte_bucket?: ExposureTermStructureBucket[];
+  by_expiry?: ExposureTermStructureExpiry[];
+}
+
+// ── Exposure basket ──────────────────────────────────────────────────────────
+
+export interface ExposureBasketAggregate {
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+}
+
+export interface ExposureBasketConstituent {
+  symbol?: string;
+  weight?: number | null;
+  underlying_price?: number | null;
+  net_gex?: number | null;
+  net_dex?: number | null;
+  net_vex?: number | null;
+  net_chex?: number | null;
+  /** Weighted-GEX contribution share, 0-100. */
+  contribution_pct?: number | null;
+  /** `"positive_gamma"` or `"negative_gamma"`. */
+  regime?: string;
+}
+
+/** Weighted cross-symbol exposure aggregate — `GET /v1/exposure/basket`. Growth+. */
+export interface ExposureBasketResponse {
+  as_of?: string;
+  constituent_count?: number | null;
+  /** Symbols requested but dropped (no data). */
+  missing_symbols?: string[];
+  aggregate?: ExposureBasketAggregate;
+  constituents?: ExposureBasketConstituent[];
+}
+
+/** Options for `exposureBasket` (`symbols` is required). */
+export interface ExposureBasketOptions {
+  /** Comma-separated symbols (max 50). Required. */
+  symbols: string;
+  /** Comma-separated weights, same length as `symbols`. Defaults to equal weight. */
+  weights?: string;
+}
+
+// ── Exposure OI diff ─────────────────────────────────────────────────────────
+
+export interface OiDiffChange {
+  strike?: number | null;
+  /** `"C"` or `"P"`. */
+  type?: string;
+  expiry?: string;
+  today_oi?: number | null;
+  prior_oi?: number | null;
+  /** Signed today − prior delta. */
+  oi_change?: number | null;
+}
+
+/** Day-over-day open-interest deltas — `GET /v1/exposure/oi-diff/{symbol}`. Growth+. */
+export interface OiDiffResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  /** `false` when no prior-day snapshot exists yet. */
+  prior_snapshot_available?: boolean;
+  total_call_oi_change?: number | null;
+  total_put_oi_change?: number | null;
+  /** Sorted by `|oi_change|` descending. */
+  top_oi_changes?: OiDiffChange[];
+}
+
+/** Options for `exposureOiDiff`. */
+export interface OiDiffOptions {
+  /** Top-N changes to return (clamped to [1, 100]). */
+  topN?: number;
+}
+
+// ── Liquidity ────────────────────────────────────────────────────────────────
+
+export interface LiquidityExpiry {
+  expiration?: string;
+  dte?: number | null;
+  atm_spread_pct?: number | null;
+  weighted_spread_pct?: number | null;
+  atm_oi?: number | null;
+  /** 0-100 composite execution score. */
+  execution_score?: number | null;
+  /** `tight` / `normal` / `wide` / `illiquid`. */
+  label?: string;
+}
+
+/** Per-expiry execution/liquidity scores — `GET /v1/liquidity/{symbol}`. Growth+. */
+export interface LiquidityResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  /** OI-weighted average execution score across the chain (0-100). */
+  chain_execution_score?: number | null;
+  best_expiry?: string | null;
+  worst_expiry?: string | null;
+  /** Number of expiries labelled `illiquid`. */
+  thin_expiry_count?: number | null;
+  expiries?: LiquidityExpiry[];
+}
+
+// ── Skew term ────────────────────────────────────────────────────────────────
+
+export interface SkewTermExpiry {
+  expiry?: string;
+  dte?: number | null;
+  atm_iv?: number | null;
+  put_25d_iv?: number | null;
+  call_25d_iv?: number | null;
+  put_10d_iv?: number | null;
+  call_10d_iv?: number | null;
+  /** `put_25d_iv − call_25d_iv`. Positive ⇒ put skew. */
+  skew_25d?: number | null;
+  /** `call_25d_iv − put_25d_iv` (= −skew_25d). */
+  risk_reversal_25d?: number | null;
+  /** Wing premium over ATM. */
+  butterfly_25d?: number | null;
+  /** Second difference of the put wing. */
+  tail_convexity?: number | null;
+}
+
+/** Skew term structure with vol-desk conventions — `GET /v1/volatility/skew-term/{symbol}`. Growth+. */
+export interface SkewTermResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  expiries?: SkewTermExpiry[];
+}
+
+// ── Spot-vol correlation ─────────────────────────────────────────────────────
+
+/** Spot/vol correlation — `GET /v1/volatility/spot-vol-correlation/{symbol}`. Growth+. */
+export interface SpotVolCorrelationResponse {
+  symbol?: string;
+  as_of?: string;
+  /** `Pearson(log_returns(spot), iv_deltas)` over 20 daily snapshots. */
+  spot_vol_correlation_20d?: number | null;
+  spot_vol_correlation_60d?: number | null;
+  data_points_20d?: number | null;
+  data_points_60d?: number | null;
+  interpretation?: string;
+}
+
+// ── Dispersion ───────────────────────────────────────────────────────────────
+
+export interface DispersionContributor {
+  symbol?: string;
+  weight?: number | null;
+  iv?: number | null;
+  /** `wᵢ × σᵢ`. */
+  contribution_to_basket_vol?: number | null;
+}
+
+/** Implied vs realized correlation / dispersion — `GET /v1/dispersion`. Alpha+. */
+export interface DispersionResponse {
+  as_of?: string;
+  index?: string;
+  constituent_count?: number | null;
+  missing_symbols?: string[];
+  horizon_days?: number | null;
+  implied_correlation?: number | null;
+  realized_correlation?: number | null;
+  /** `implied − realized`. Positive ⇒ correlation rich. */
+  correlation_premium?: number | null;
+  implied_vol_index?: number | null;
+  implied_vol_basket?: number | null;
+  /** Sorted descending by `contribution_to_basket_vol`. */
+  top_contributors?: DispersionContributor[];
+}
+
+/** Options for `dispersion` (`index` and `symbols` are required). */
+export interface DispersionOptions {
+  /** Index symbol (e.g. `SPX`). Required. */
+  index: string;
+  /** Comma-separated constituent symbols (max 50). Required. */
+  symbols: string;
+  /** Comma-separated weights. Defaults to equal weight. */
+  weights?: string;
+  /** Realized-correlation lookback in days (clamped to [5, 252]). */
+  horizonDays?: number;
+}
+
+// ── Realized volatility ──────────────────────────────────────────────────────
+
+/** Annualized realized vol (percent) over 10/20/30-day windows. Each value nullable. */
+export interface RealizedVolatilityWindow {
+  rv10?: number | null;
+  rv20?: number | null;
+  rv30?: number | null;
+}
+
+/** Range-based realized vol estimators — `GET /v1/volatility/realized/{symbol}`. Alpha+. */
+export interface RealizedVolatilityResponse {
+  symbol?: string;
+  as_of?: string;
+  underlying_price?: number | null;
+  estimators?: {
+    close_to_close?: RealizedVolatilityWindow;
+    parkinson?: RealizedVolatilityWindow;
+    garman_klass?: RealizedVolatilityWindow;
+    rogers_satchell?: RealizedVolatilityWindow;
+    yang_zhang?: RealizedVolatilityWindow;
+  };
+}
+
+// ── Volatility forecast ──────────────────────────────────────────────────────
+
+/** EWMA conditional vol forecast (λ=0.94). */
+export interface VolatilityForecastEwma {
+  lambda?: number | null;
+  vol_annualized?: number | null;
+  next_day_forecast?: number | null;
+}
+
+/** HAR-RV component breakdown (daily/weekly/monthly realized vol). */
+export interface VolatilityForecastHarComponents {
+  daily?: number | null;
+  weekly?: number | null;
+  monthly?: number | null;
+}
+
+/** HAR-RV conditional vol forecast. */
+export interface VolatilityForecastHarRv {
+  vol_annualized?: number | null;
+  components?: VolatilityForecastHarComponents;
+  next_day_forecast?: number | null;
+}
+
+/** GARCH(1,1) MLE parameters. `dof` only present for `student_t`. */
+export interface VolatilityForecastGarchParams {
+  omega?: number | null;
+  alpha?: number | null;
+  beta?: number | null;
+  /** Degrees of freedom, only for the `student_t` distribution. */
+  dof?: number | null;
+}
+
+/** One GARCH forecast horizon point. */
+export interface VolatilityForecastGarchPoint {
+  horizon_days?: number | null;
+  vol_annualized?: number | null;
+}
+
+/** GARCH(1,1) conditional vol forecast. */
+export interface VolatilityForecastGarch {
+  model?: string;
+  distribution?: string;
+  params?: VolatilityForecastGarchParams;
+  /** `alpha + beta`. */
+  persistence?: number | null;
+  long_run_vol_annualized?: number | null;
+  half_life_days?: number | null;
+  converged?: boolean;
+  /** Null when `converged` is `false`. */
+  forecast?: VolatilityForecastGarchPoint[] | null;
+}
+
+/** Conditional vol forecasts — `GET /v1/volatility/forecast/{symbol}`. Alpha+. */
+export interface VolatilityForecastResponse {
+  symbol?: string;
+  as_of?: string;
+  ewma?: VolatilityForecastEwma;
+  har_rv?: VolatilityForecastHarRv;
+  garch?: VolatilityForecastGarch;
+}
+
+/** Options for `volatilityForecast`. */
+export interface VolatilityForecastOptions {
+  /** Innovation distribution for GARCH. Defaults to `student_t`. */
+  dist?: 'student_t' | 'gaussian';
+}
+
+// ── VIX state ────────────────────────────────────────────────────────────────
+
+/** Overvixing / undervixing regime — `GET /v1/macro/vix-state`. Growth+. */
+export interface VixStateResponse {
+  as_of?: string;
+  vix?: number | null;
+  spx_rv_20d?: number | null;
+  /** `vix − spx_rv_20d` (vol points). */
+  spread?: number | null;
+  /** `vix / spx_rv_20d`, or `null`. */
+  ratio?: number | null;
+  /** `overvixing` / `undervixing` / `neutral`. */
+  state?: string;
+  interpretation?: string;
+}
+
+// ── Universe ─────────────────────────────────────────────────────────────────
+
+export interface UniverseSymbol {
+  symbol?: string;
+  /** 1 = high-traffic loop; 2 = remaining curated symbols. */
+  tier?: number | null;
+  is_pre_warmed?: boolean;
+}
+
+/** Curated symbol directory — `GET /v1/universe`. Public. */
+export interface UniverseResponse {
+  as_of?: string;
+  /** Total universe size. */
+  count?: number | null;
+  /** `min(count, limit)`. */
+  returned?: number | null;
+  limit?: number | null;
+  /** Echoes the effective sort (`tier` / `symbol`). */
+  sort?: string;
+  symbols?: UniverseSymbol[];
+}
+
+/** Options for `universe`. */
+export interface UniverseOptions {
+  /** `tier` (default) or `symbol`. */
+  sort?: 'tier' | 'symbol';
+  /** Max symbols (clamped to [1, 1000]). */
+  limit?: number;
+}
+
+// ── Dealer premium (flow) ────────────────────────────────────────────────────
+
+/** Full-tape Net Dealer Premium — `GET /v1/flow/options/{symbol}/dealer-premium`. Alpha+. */
+export interface FlowDealerPremiumResponse {
+  symbol?: string;
+  as_of?: string;
+  window_minutes?: number | null;
+  expiry?: string | null;
+  /** Dealer is BUYER when customer hits the bid. */
+  dealer_buy_premium?: number | null;
+  /** Dealer is WRITER when customer lifts the ask. */
+  dealer_write_premium?: number | null;
+  /** `dealer_buy_premium − dealer_write_premium`. */
+  net_dealer_premium?: number | null;
+  total_premium?: number | null;
+  trade_count?: number | null;
+  bucket_count?: number | null;
+}
+
+/** Options for `flowDealerPremium`. */
+export interface FlowDealerPremiumOptions {
+  /** Window in minutes (clamped to [1, 10080]). */
+  windowMinutes?: number;
+  /** Filter to a single expiry (`yyyy-MM-dd`). */
+  expiry?: string;
+}
+
+// ── Zero-DTE flow ────────────────────────────────────────────────────────────
+
+/** Flow-direction block appended to the 0DTE flow snapshot. */
+export interface ZeroDteFlowDirection {
+  /** `no_flow` | `neutral` | `amplifying` | `dampening` | `regime_flip`. */
+  label?: string;
+  settled_net_gex?: number | null;
+  live_net_gex?: number | null;
+  flow_gex_adjustment?: number | null;
+  /** `null` when settled GEX is 0. */
+  flow_gex_pct_shift?: number | null;
+  contracts_with_flow?: number | null;
+  total_abs_delta_contracts?: number | null;
+  description?: string;
+}
+
+/**
+ * Live 0DTE snapshot — `GET /v1/flow/zero-dte/snapshot/{symbol}`. Growth+.
+ *
+ * Same shape as {@link ZeroDteResponse} (effective-OI / flow-adjusted) PLUS a
+ * `flow_direction` block. Degraded payloads carry `no_zero_dte` /
+ * `session_closed` flags as on `zeroDte`.
+ */
+export interface ZeroDteFlowSnapshotResponse extends ZeroDteResponse {
+  flow_direction?: ZeroDteFlowDirection;
+}
+
+/** One intraday 0DTE flow series bar. */
+export interface ZeroDteFlowSeriesBar {
+  /** Bar timestamp (UTC). */
+  t?: string;
+  spot?: number | null;
+  net_gex?: number | null;
+  net_dex?: number | null;
+  gamma_flip?: number | null;
+  call_wall?: number | null;
+  put_wall?: number | null;
+  magnet?: number | null;
+  pin_score?: number | null;
+  pin_probability_pct?: number | null;
+  regime?: string;
+  atm_iv?: number | null;
+  charm_dollars_per_hour?: number | null;
+  hedge_flow_call_cumulative?: number | null;
+  hedge_flow_put_cumulative?: number | null;
+  hedge_flow_cumulative_all?: number | null;
+}
+
+/** Intraday 0DTE flow series — `GET /v1/flow/zero-dte/series/{symbol}`. Growth+. */
+export interface ZeroDteFlowSeriesResponse {
+  symbol?: string;
+  /** The 0DTE expiry being sampled (today, ET). */
+  expiration?: string;
+  as_of?: string;
+  /** Echoes the requested bar size. */
+  bar_size?: string;
+  /** Ascending by `t`; empty when no samples in the window. */
+  bars?: ZeroDteFlowSeriesBar[];
+}
+
+/** Options for the 0DTE flow series. */
+export interface ZeroDteFlowSeriesOptions {
+  /** `30s` (default) / `1m` / `5m` / `15m`. */
+  bar?: '30s' | '1m' | '5m' | '15m';
+  /** Lookback in minutes (clamped to [1, 390]). */
+  minutes?: number;
+}
+
+/** One dealer hedge-flow bar. */
+export interface ZeroDteHedgeFlowBar {
+  t?: string;
+  /** Per-bar signed delta-dollars in this bucket. */
+  bar?: number | null;
+  /** Running sum since session open (for the requested `side`). */
+  cumulative?: number | null;
+}
+
+/** Dealer hedge-flow series — `GET /v1/flow/zero-dte/hedge-flow/{symbol}`. Growth+. */
+export interface ZeroDteHedgeFlowResponse {
+  symbol?: string;
+  expiration?: string;
+  as_of?: string;
+  /** Echoes the requested side (`all` / `calls` / `puts`). */
+  side?: string;
+  bar_size?: string;
+  bars?: ZeroDteHedgeFlowBar[];
+}
+
+/** Options for the 0DTE hedge-flow series. */
+export interface ZeroDteHedgeFlowOptions {
+  /** `all` (default) / `calls` / `puts`. */
+  side?: 'all' | 'calls' | 'puts';
+  bar?: '30s' | '1m' | '5m' | '15m';
+  minutes?: number;
+}
+
+/** One 0DTE heatmap bar (`values` is index-parallel to `strikes_grid`). */
+export interface ZeroDteHeatmapBar {
+  t?: string;
+  spot?: number | null;
+  /** Metric per strike, index-aligned to `strikes_grid`. */
+  values?: Array<number | null>;
+}
+
+/** Strike × time 0DTE heatmap — `GET /v1/flow/zero-dte/heatmap/{symbol}`. Alpha+. */
+export interface ZeroDteHeatmapResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  expiration?: string;
+  /** Echoes the requested metric. */
+  metric?: string;
+  /** Echoes the requested mode (`raw` / `delta`). */
+  mode?: string;
+  bar_size?: string;
+  as_of?: string;
+  tier_used?: string;
+  /** Strikes for the column-major `values` arrays. */
+  strikes_grid?: number[];
+  bars?: ZeroDteHeatmapBar[];
+  /** Reserved for sampler-gap intervals. */
+  gap_intervals?: unknown[];
+}
+
+/** Options for the 0DTE heatmap. */
+export interface ZeroDteHeatmapOptions {
+  /** `gex` (default) / `dex` / `vex` / `chex` / `oi` / `signed_flow`. */
+  metric?: 'gex' | 'dex' | 'vex' | 'chex' | 'oi' | 'signed_flow';
+  /** `raw` (default) / `delta`. */
+  mode?: 'raw' | 'delta';
+  /** Only `1m` is supported in this phase. */
+  bar?: '1m';
+  minutes?: number;
+}
+
+/** One 0DTE strike-flow bar (three parallel arrays aligned to `strikes_grid`). */
+export interface ZeroDteStrikeFlowBar {
+  t?: string;
+  spot?: number | null;
+  signed_delta_dollars?: Array<number | null>;
+  signed_gamma_dollars?: Array<number | null>;
+  contracts?: Array<number | null>;
+}
+
+/** Per-strike signed 0DTE flow — `GET /v1/flow/zero-dte/strike-flow/{symbol}`. Alpha+. */
+export interface ZeroDteStrikeFlowResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  expiration?: string;
+  bar_size?: string;
+  as_of?: string;
+  tier_used?: string;
+  strikes_grid?: number[];
+  bars?: ZeroDteStrikeFlowBar[];
+  gap_intervals?: unknown[];
+}
+
+/** Options for the 0DTE strike-flow series. */
+export interface ZeroDteStrikeFlowOptions {
+  /** Only `1m` is supported in this phase. */
+  bar?: '1m';
+  minutes?: number;
+}
+
+// ── Flow stock bars ──────────────────────────────────────────────────────────
+
+/** One OHLCV+flow bar. */
+export interface FlowStockBar {
+  /** Bar start (UTC). */
+  ts?: string;
+  /** `true` once the bar is final. */
+  closed?: boolean;
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
+  close?: number | null;
+  vwap?: number | null;
+  buyVolume?: number | null;
+  sellVolume?: number | null;
+  midVolume?: number | null;
+  netVolume?: number | null;
+  tradeCount?: number | null;
+  biggestTrade?: number | null;
+}
+
+/** Multi-resolution OHLCV+flow bars — `GET /v1/flow/stocks/{symbol}/bars`. Alpha+. */
+export interface FlowStockBarsResponse {
+  symbol?: string;
+  /** Echo of the requested resolution. */
+  resolution?: string;
+  minutes?: number | null;
+  count?: number | null;
+  /** Oldest 1-second bucket timestamp, or `null`. */
+  dataStartUtc?: string | null;
+  /** Oldest-first bars. */
+  bars?: FlowStockBar[];
+}
+
+/** Options for `flowStockBars` (`resolution` is required). */
+export interface FlowStockBarsOptions {
+  /** One of `1s` / `1m` / `5m` / `15m` / `30m` / `1h` / `4h`. Required. */
+  resolution: '1s' | '1m' | '5m' | '15m' | '30m' | '1h' | '4h';
+  /** Look-back window in minutes (clamped to [1, 1440]). */
+  minutes?: number;
+}
+
+// ── VRP history ──────────────────────────────────────────────────────────────
+
+export interface VrpHistoryItem {
+  date?: string;
+  spot?: number | null;
+  atm_iv?: number | null;
+  rv_5d?: number | null;
+  rv_10d?: number | null;
+  rv_20d?: number | null;
+  rv_30d?: number | null;
+  /** VRP spread (ATM_IV − RV20d). */
+  vrp_20d?: number | null;
+  /** ATM straddle price ($). */
+  straddle?: number | null;
+  /** 1-day expected move ($). */
+  expected_move_1d?: number | null;
+}
+
+/** Daily VRP time series — `GET /v1/vrp/{symbol}/history`. Alpha+. */
+export interface VrpHistoryResponse {
+  symbol?: string;
+  days?: number | null;
+  data_points?: number | null;
+  history?: VrpHistoryItem[];
+}
+
+/** Options for `vrpHistory`. */
+export interface VrpHistoryOptions {
+  /** Lookback days (1-365). */
+  days?: number;
+}
+
+/** Options for `vrp` (the `date` param is new in v1.1). */
+export interface VrpOptions {
+  /** Optional historical date (`yyyy-MM-dd`) — returns the persisted snapshot. */
+  date?: string;
+}
+
+// ── Earnings ─────────────────────────────────────────────────────────────────
+
+export interface EarningsCalendarEvent {
+  symbol?: string;
+  company_name?: string;
+  earnings_date?: string;
+  /** `bmo` (before open) / `amc` (after close); nullable. */
+  timing?: string | null;
+  is_confirmed?: boolean;
+  fiscal_period?: string;
+  fiscal_year?: number | null;
+  importance?: number | null;
+  eps_estimate?: number | null;
+  implied_move_pct?: number | null;
+  days_to_event?: number | null;
+}
+
+/** Upcoming earnings calendar — `GET /v1/earnings/calendar`. Growth+. */
+export interface EarningsCalendarResponse {
+  events?: EarningsCalendarEvent[];
+  count?: number | null;
+}
+
+/** Options for `earningsCalendar`. */
+export interface EarningsCalendarOptions {
+  /** Forward window in days (clamped to [1, 90]). */
+  days?: number;
+  /** Comma-separated symbols to filter to. */
+  symbols?: string;
+  /** Minimum importance rating. */
+  importance?: number;
+}
+
+export interface EarningsExpectedMoveBlock {
+  raw_straddle_pct?: number | null;
+  earnings_implied_pct?: number | null;
+  baseline_drift_pct?: number | null;
+  earnings_iv?: number | null;
+  term_iv_post_event?: number | null;
+  term_kink_pct?: number | null;
+}
+
+/** Earnings-implied move decomposition — `GET /v1/earnings/expected-move/{symbol}`. Growth+. */
+export interface EarningsExpectedMoveResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  earnings_date?: string;
+  session?: string;
+  days_to_event?: number | null;
+  /** Null when pre/post-event expiry IVs can't be resolved. */
+  expected_move?: EarningsExpectedMoveBlock | null;
+}
+
+export interface EarningsHistoryItem {
+  date?: string;
+  fiscal_period?: string;
+  fiscal_year?: number | null;
+  eps_estimate?: number | null;
+  eps_actual?: number | null;
+  eps_surprise_pct?: number | null;
+  revenue_actual?: number | null;
+  revenue_surprise_pct?: number | null;
+  implied_move_pct?: number | null;
+  actual_move_pct?: number | null;
+  iv_crush_pct?: number | null;
+  pre_atm_iv?: number | null;
+  post_atm_iv?: number | null;
+}
+
+/** Past earnings events — `GET /v1/earnings/history/{symbol}`. Growth+. */
+export interface EarningsHistoryResponse {
+  symbol?: string;
+  count?: number | null;
+  history?: EarningsHistoryItem[];
+}
+
+/** Options for `earningsHistory`. */
+export interface EarningsHistoryOptions {
+  /** Most-recent events to return (clamped to [1, 40]). */
+  limit?: number;
+}
+
+export interface EarningsIvCrushEstimate {
+  expected_crush_pct?: number | null;
+  pre_iv?: number | null;
+  post_iv?: number | null;
+}
+
+export interface EarningsIvCrushDistribution {
+  median?: number | null;
+  p25?: number | null;
+  p75?: number | null;
+  worst?: number | null;
+  best?: number | null;
+  count?: number | null;
+}
+
+/** Expected + historical IV crush — `GET /v1/earnings/iv-crush/{symbol}`. Growth+. */
+export interface EarningsIvCrushResponse {
+  symbol?: string;
+  as_of?: string;
+  /** Null when no upcoming event but history exists. */
+  earnings_date?: string | null;
+  /** Null when no upcoming event or the term structure can't be resolved. */
+  current_estimate?: EarningsIvCrushEstimate | null;
+  distribution?: EarningsIvCrushDistribution;
+}
+
+export interface EarningsVrpBlock {
+  implied_move_pct?: number | null;
+  realized_median?: number | null;
+  realized_mean?: number | null;
+  premium_ratio?: number | null;
+  z_score?: number | null;
+  percentile?: number | null;
+  /** `rich` / `slightly_rich` / `fair` / `slightly_cheap` / `cheap` / `insufficient_data`. */
+  assessment?: string;
+  /** `downside_overpriced` / `upside_overpriced`, or null. */
+  directional_bias?: string | null;
+}
+
+export interface EarningsSurpriseReaction {
+  beat_avg_move_pct?: number | null;
+  miss_avg_move_pct?: number | null;
+  inline_avg_move_pct?: number | null;
+}
+
+/** Earnings VRP — `GET /v1/earnings/vrp/{symbol}`. Alpha+. */
+export interface EarningsVrpResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  earnings_date?: string;
+  days_to_event?: number | null;
+  earnings_vrp?: EarningsVrpBlock;
+  surprise_reaction?: EarningsSurpriseReaction;
+}
+
+export interface EarningsDealerLevels {
+  gamma_flip?: number | null;
+  call_wall?: number | null;
+  put_wall?: number | null;
+  highest_oi_strike?: number | null;
+}
+
+export interface EarningsDealerGexBucket {
+  /** `pre_event` / `event_week` / `post_event`. */
+  bucket?: string;
+  net_gex?: number | null;
+  contract_count?: number | null;
+}
+
+export interface EarningsDealerTopStrike {
+  strike?: number | null;
+  net_gex?: number | null;
+  call_oi?: number | null;
+  put_oi?: number | null;
+}
+
+/** Dealer positioning into earnings — `GET /v1/earnings/dealer-positioning/{symbol}`. Alpha+. */
+export interface EarningsDealerPositioningResponse {
+  symbol?: string;
+  underlying_price?: number | null;
+  as_of?: string;
+  earnings_date?: string;
+  /** Closest expiry on/after the earnings date; null if none. */
+  event_expiry?: string | null;
+  levels?: EarningsDealerLevels;
+  gex_by_dte_bucket?: EarningsDealerGexBucket[];
+  top_strikes?: EarningsDealerTopStrike[];
+  /** Event-expiry CHEX / full-chain CHEX; null when not computable. */
+  charm_acceleration?: number | null;
+  /** `positive_gamma` / `negative_gamma` / `undetermined`. */
+  regime?: string;
+}
+
+export interface EarningsStrategyScores {
+  long_straddle?: number | null;
+  short_strangle?: number | null;
+  iron_condor?: number | null;
+  calendar_spread?: number | null;
+  earnings_diagonal?: number | null;
+}
+
+export interface EarningsStrategyContext {
+  premium_ratio?: number | null;
+  iv_crush_median?: number | null;
+  /** `positive_gamma` / `negative_gamma` / `undetermined`. */
+  regime?: string;
+  implied_move_pct?: number | null;
+}
+
+/** Earnings strategy-suitability scores — `GET /v1/earnings/strategies/{symbol}`. Alpha+. */
+export interface EarningsStrategiesResponse {
+  symbol?: string;
+  as_of?: string;
+  earnings_date?: string;
+  scores?: EarningsStrategyScores;
+  context?: EarningsStrategyContext;
+}
+
+export interface EarningsScreenerEvent {
+  symbol?: string;
+  company_name?: string;
+  earnings_date?: string;
+  days_to_event?: number | null;
+  timing?: string | null;
+  importance?: number | null;
+  implied_move_pct?: number | null;
+  premium_ratio?: number | null;
+  iv_crush_median?: number | null;
+  assessment?: string | null;
+}
+
+/** Cross-sectional earnings screener — `GET /v1/earnings/screener`. Alpha+. */
+export interface EarningsScreenerResponse {
+  events?: EarningsScreenerEvent[];
+  /** Total matched events before `limit`. */
+  count?: number | null;
+}
+
+/** Options for `earningsScreener`. */
+export interface EarningsScreenerOptions {
+  /** `vrp_richest` (default) / `cheapest_move` / `highest_crush` / `importance`. */
+  sort?: 'vrp_richest' | 'cheapest_move' | 'highest_crush' | 'importance';
+  /** Max rows (clamped to [1, 50]). */
+  limit?: number;
+  /** Forward window in days (clamped to [1, 60]). */
+  days?: number;
+  /** Minimum importance rating. */
+  minImportance?: number;
+}
+
+// ── Structures (POST) ────────────────────────────────────────────────────────
+
+/** A leg for a structure P&L request. */
+export interface StructureLeg {
+  /** `buy` (alias `long`) / `sell` (alias `short`). */
+  action: string;
+  /** `call` (alias `c`) / `put` (alias `p`). */
+  type: string;
+  strike: number;
+  /** Per-contract premium (≥ 0). Required for P&L. */
+  premium: number;
+  /** Defaults to 1. */
+  quantity?: number;
+}
+
+/** Request body for `structurePnl`. */
+export interface StructurePnlRequest {
+  legs: StructureLeg[];
+  /** Lower bound of the curve. Derived from strikes ±30% when omitted. */
+  minUnderlying?: number;
+  /** Upper bound of the curve. */
+  maxUnderlying?: number;
+  /** Equally-spaced curve sample points (≥ 2, default 81). */
+  points?: number;
+}
+
+export interface StructurePnlPoint {
+  underlying?: number | null;
+  pnl?: number | null;
+}
+
+/** At-expiry P&L curve — `POST /v1/structures/pnl`. Basic+. */
+export interface StructurePnlResponse {
+  /** Echoes the request legs. */
+  legs?: StructureLeg[];
+  pnl_curve?: StructurePnlPoint[];
+  /** Underlying prices where P&L crosses zero. */
+  breakevens?: number[];
+  /** `null` when unbounded on that side. */
+  max_profit?: number | null;
+  max_loss?: number | null;
+}
+
+/** A leg for a structure Greeks request (carries its own expiry + IV). */
+export interface StructureGreeksLeg {
+  /** `buy` / `sell`. */
+  action: string;
+  /** `call` / `put`. */
+  type: string;
+  strike: number;
+  /** Leg expiry, `YYYY-MM-DD`. */
+  expiry: string;
+  /** Implied vol as a decimal (e.g. `0.28`). */
+  impliedVol: number;
+  /** Defaults to 1. */
+  quantity?: number;
+}
+
+/** Request body for `structureGreeks`. */
+export interface StructureGreeksRequest {
+  legs: StructureGreeksLeg[];
+  /** Underlying spot priced against (> 0). */
+  spot: number;
+  /** Valuation date, `YYYY-MM-DD`. Defaults to today (UTC). */
+  today?: string;
+  /** Risk-free rate (decimal, default 0.045). */
+  rate?: number;
+  /** Continuous dividend yield (decimal, default 0.013). */
+  dividendYield?: number;
+}
+
+/** Aggregated position Greeks. */
+export interface StructurePositionGreeks {
+  delta?: number | null;
+  gamma?: number | null;
+  theta?: number | null;
+  vega?: number | null;
+  rho?: number | null;
+  vanna?: number | null;
+  charm?: number | null;
+}
+
+/** Aggregate position Greeks — `POST /v1/structures/greeks`. Basic+. */
+export interface StructureGreeksResponse {
+  spot?: number | null;
+  as_of?: string;
+  /** Resolved `today`. */
+  valuation_date?: string;
+  rate?: number | null;
+  dividend_yield?: number | null;
+  /** Echoes the request legs. */
+  legs?: StructureGreeksLeg[];
+  position_greeks?: StructurePositionGreeks;
+}
+
+// ── Screener fields ──────────────────────────────────────────────────────────
+
+export interface ScreenerField {
+  name?: string;
+  /** e.g. `number`, `string`. */
+  type?: string;
+}
+
+/** Queryable screener fields — `GET /v1/screener/fields`. Any authenticated tier. */
+export interface ScreenerFieldsResponse {
+  /** Sorted by `name`. */
+  fields?: ScreenerField[];
+  count?: number | null;
+}

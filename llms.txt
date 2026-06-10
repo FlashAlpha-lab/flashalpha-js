@@ -100,6 +100,69 @@ flow feed — 24 methods under `/v1/flow/*`:
 Full method list with parameters lives in the
 [README](https://github.com/FlashAlpha-lab/flashalpha-js).
 
+### Strategy signals (`/v1/strategies/*`)
+
+Ten one-call trade-signal endpoints, each returning the same
+`StrategyDecisionResponse` envelope (action, conviction, best matching
+multi-leg structure with legs, risk flags, data quality):
+`strategyFlowAnomaly`, `strategyExpiryPositioning`, `strategyZeroDte`,
+`strategyDealerRegime`, `strategyVolCarry`, `strategyYieldEnhancement`,
+`strategySurfaceAnomaly`, `strategySkew`, `strategyTermStructure`,
+`strategyTailPricing`. Tiers vary (Basic+ / Growth+ / Alpha+).
+
+### Earnings (`/v1/earnings/*`)
+
+Eight endpoints for trading the event: `earningsCalendar` (upcoming
+events with implied moves), `earningsExpectedMove` (implied-move
+decomposition), `earningsHistory` (implied vs actual move, IV crush),
+`earningsIvCrush`, `earningsVrp` (earnings variance risk premium),
+`earningsDealerPositioning`, `earningsStrategies` (straddle/strangle/
+condor suitability), `earningsScreener` (cross-sectional rank by VRP /
+crush / move). Growth+ / Alpha+.
+
+### Structures (`POST /v1/structures/*`)
+
+Pure-math multi-leg analytics, no market data required:
+`structurePnl` (at-expiry P&L curve, breakevens, max profit/loss) and
+`structureGreeks` (aggregate BSM position Greeks). Basic+.
+
+### Zero-DTE flow (`/v1/flow/zero-dte/*`)
+
+`flowZeroDteSnapshot`, `flowZeroDteSeries`, `flowZeroDteHedgeFlow`,
+`flowZeroDteHeatmap` (strike × time gex/dex/vex/chex/oi/signed_flow),
+`flowZeroDteStrikeFlow` (per-strike signed delta/gamma dollars).
+Growth+ / Alpha+.
+
+### Vol surface, correlation & macro
+
+- `surfaceSvi(symbol)` — live SVI-fitted surface parameters per expiry
+  (Alpha+).
+- `expectedMove(symbol)` — straddle-implied expected move per expiry
+  (Basic+).
+- `liquidity(symbol)` — per-expiry execution/liquidity scores (Growth+).
+- `skewTerm(symbol)` — skew term structure (risk reversal, butterfly)
+  (Growth+).
+- `spotVolCorrelation(symbol)` — rolling 20d/60d spot/vol correlation
+  (Growth+).
+- `dispersion({ index, symbols })` — implied vs realized correlation /
+  dispersion for an index basket (Alpha+).
+- `realizedVolatility(symbol)` — range-based realized vol estimators
+  (close-to-close, Parkinson, Garman-Klass, Rogers-Satchell, Yang-Zhang)
+  over 10/20/30-day windows (Alpha+).
+- `volatilityForecast(symbol, { dist })` — conditional vol forecasts
+  (EWMA, HAR-RV, GARCH(1,1) MLE) (Alpha+).
+- `vixState()` — VIX overvixing/undervixing regime (Growth+).
+- `universe()` — curated queryable symbol directory (public).
+- `vrpHistory(symbol)` — daily VRP time series (Alpha+).
+- `vrp(symbol, { date })` — historical VRP snapshot for a session.
+- `exposureSheet` / `exposureTermStructure` / `exposureBasket` /
+  `exposureOiDiff` — unified per-strike sheet, per-DTE-bucket greeks,
+  weighted cross-symbol basket, and day-over-day OI deltas (Growth+).
+- `flowDealerPremium(symbol)` — full-tape Net Dealer Premium (Alpha+).
+- `flowStockBars(symbol, { resolution })` — multi-resolution OHLCV+flow
+  bars (Alpha+).
+- `screenerFields()` — list the queryable screener fields and types.
+
 ## Try without writing code
 
 - Interactive playground (Swagger UI): https://lab.flashalpha.com/swagger
@@ -111,11 +174,22 @@ FlashAlpha has four tiers — every endpoint declares its minimum tier:
 
 - **Free**: public endpoints (`health`, `tickers`, `stockQuote`,
   `surface`, `gex`, `dex`, `vex`, `chex`, `greeks`, `iv`, `account`).
-- **Basic+**: adds `maxPain`.
-- **Growth+**: adds `exposureSummary`, `exposureLevels`, `narrative`,
-  `zeroDte`, `optionQuote`, `volatility`, `kelly`, `screener`.
-- **Alpha+**: adds `vrp`, `advVolatility` (SVI calibration, variance
-  surface, arbitrage detection), and the full `flow*` tier (24
+- **Basic+**: adds `maxPain`, `expectedMove`, `structurePnl`,
+  `structureGreeks`, and the Basic-tier strategy signals.
+- **Growth+**: adds `exposureSummary`, `exposureLevels`, `exposureSheet`,
+  `exposureTermStructure`, `exposureBasket`, `exposureOiDiff`,
+  `narrative`, `zeroDte`, `optionQuote`, `volatility`, `liquidity`,
+  `skewTerm`, `spotVolCorrelation`, `vixState`, `kelly`, `screener`, the
+  earnings calendar/history/expected-move/IV-crush endpoints, the
+  zero-DTE flow snapshot/series/hedge-flow endpoints, and the Growth-tier
+  strategy signals.
+- **Alpha+**: adds `vrp` (+ `vrp({ date })` and `vrpHistory`),
+  `advVolatility` (SVI calibration, variance surface, arbitrage
+  detection), `surfaceSvi`, `dispersion`, `realizedVolatility`,
+  `volatilityForecast`, the earnings VRP / dealer
+  positioning / strategies / screener endpoints, the zero-DTE flow
+  heatmap / strike-flow endpoints, `flowDealerPremium`, `flowStockBars`,
+  the Alpha-tier strategy signals, and the full `flow*` tier (24
   simulation-aware + signals + raw options/stock flow endpoints).
 
 Pricing and tier comparison: https://flashalpha.com.

@@ -65,6 +65,66 @@ import type {
   VolatilityResponse,
   VrpResponse,
   ZeroDteResponse,
+  // ── v1.1 additions ──
+  StrategyDecisionResponse,
+  StrategyExpiryOptions,
+  StrategyExpiryPositioningOptions,
+  StrategyZeroDteOptions,
+  StrategyVolCarryOptions,
+  StrategyYieldEnhancementOptions,
+  SurfaceSviResponse,
+  ExpectedMoveResponse,
+  ExpectedMoveOptions,
+  ExposureSheetResponse,
+  ExposureSheetOptions,
+  ExposureTermStructureResponse,
+  ExposureBasketResponse,
+  ExposureBasketOptions,
+  OiDiffResponse,
+  OiDiffOptions,
+  LiquidityResponse,
+  SkewTermResponse,
+  SpotVolCorrelationResponse,
+  DispersionResponse,
+  DispersionOptions,
+  RealizedVolatilityResponse,
+  VolatilityForecastResponse,
+  VolatilityForecastOptions,
+  VixStateResponse,
+  UniverseResponse,
+  UniverseOptions,
+  FlowDealerPremiumResponse,
+  FlowDealerPremiumOptions,
+  ZeroDteFlowSnapshotResponse,
+  ZeroDteFlowSeriesResponse,
+  ZeroDteFlowSeriesOptions,
+  ZeroDteHedgeFlowResponse,
+  ZeroDteHedgeFlowOptions,
+  ZeroDteHeatmapResponse,
+  ZeroDteHeatmapOptions,
+  ZeroDteStrikeFlowResponse,
+  ZeroDteStrikeFlowOptions,
+  FlowStockBarsResponse,
+  FlowStockBarsOptions,
+  VrpHistoryResponse,
+  VrpHistoryOptions,
+  VrpOptions,
+  EarningsCalendarResponse,
+  EarningsCalendarOptions,
+  EarningsExpectedMoveResponse,
+  EarningsHistoryResponse,
+  EarningsHistoryOptions,
+  EarningsIvCrushResponse,
+  EarningsVrpResponse,
+  EarningsDealerPositioningResponse,
+  EarningsStrategiesResponse,
+  EarningsScreenerResponse,
+  EarningsScreenerOptions,
+  StructurePnlRequest,
+  StructurePnlResponse,
+  StructureGreeksRequest,
+  StructureGreeksResponse,
+  ScreenerFieldsResponse,
 } from './types';
 
 const BASE_URL = 'https://lab.flashalpha.com';
@@ -101,6 +161,8 @@ export interface ExpirationOptions {
 
 export interface ZeroDteOptions {
   strikeRange?: number;
+  /** Slice to one expiration cycle (`YYYY-MM-DD`). New in v1.1. */
+  expiry?: string;
 }
 
 /** Optional expiration-cycle filter for flow analytics endpoints. */
@@ -531,6 +593,7 @@ export class FlashAlpha {
   async zeroDte(symbol: string, options: ZeroDteOptions = {}): Promise<ZeroDteResponse> {
     const params: Record<string, string | number | undefined> = {};
     if (options.strikeRange !== undefined) params['strike_range'] = options.strikeRange;
+    if (options.expiry) params['expiry'] = options.expiry;
     return this._get(`/v1/exposure/zero-dte/${_seg(symbol)}`, Object.keys(params).length ? params : undefined) as Promise<ZeroDteResponse>;
   }
 
@@ -833,12 +896,21 @@ export class FlashAlpha {
    * - `response.net_harvest_score`, `response.dealer_flow_risk` — top-level
    *   composite scores
    *
+   * Pass `options.date` (`YYYY-MM-DD`) to pin the analytics to a historical
+   * session; omit it for the live read.
+   *
    * @example
    * const r = await fa.vrp('SPY');
    * console.log(r.vrp.z_score, r.directional.downside_vrp);
+   * const hist = await fa.vrp('SPY', { date: '2026-03-20' });
    */
-  async vrp(symbol: string): Promise<VrpResponse> {
-    return this._get(`/v1/vrp/${_seg(symbol)}`) as Promise<VrpResponse>;
+  async vrp(symbol: string, options: VrpOptions = {}): Promise<VrpResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.date) params['date'] = options.date;
+    return this._get(
+      `/v1/vrp/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<VrpResponse>;
   }
 
   // ── Account & System ──────────────────────────────────────────────────────
@@ -884,5 +956,373 @@ export class FlashAlpha {
   /** Health check (public, no auth required). */
   async health(): Promise<HealthResponse> {
     return this._get('/health') as Promise<HealthResponse>;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // v1.1 endpoints — full API parity
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Market Data (additional) ──────────────────────────────────────────────
+
+  /** Live SVI-fitted volatility surface parameters per expiry. Requires Alpha+. */
+  async surfaceSvi(symbol: string): Promise<SurfaceSviResponse> {
+    return this._get(`/v1/surface/svi/${_seg(symbol)}`) as Promise<SurfaceSviResponse>;
+  }
+
+  // ── Exposure Analytics (additional) ───────────────────────────────────────
+
+  /** Unified per-strike exposure sheet (GEX/DEX/VEX/CHEX + DAG + OI). Requires Growth+. */
+  async exposureSheet(symbol: string, options: ExposureSheetOptions = {}): Promise<ExposureSheetResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiration) params['expiration'] = options.expiration;
+    if (options.minOi !== undefined) params['min_oi'] = options.minOi;
+    return this._get(
+      `/v1/exposure/sheet/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ExposureSheetResponse>;
+  }
+
+  /** Per-greek exposure by DTE bucket and per expiry. Requires Growth+. */
+  async exposureTermStructure(symbol: string): Promise<ExposureTermStructureResponse> {
+    return this._get(`/v1/exposure/term-structure/${_seg(symbol)}`) as Promise<ExposureTermStructureResponse>;
+  }
+
+  /** Weighted cross-symbol exposure aggregate (basket GEX/DEX/VEX/CHEX). Requires Growth+. */
+  async exposureBasket(options: ExposureBasketOptions): Promise<ExposureBasketResponse> {
+    const params: Record<string, string | number | undefined> = { symbols: options.symbols };
+    if (options.weights) params['weights'] = options.weights;
+    return this._get('/v1/exposure/basket', params) as Promise<ExposureBasketResponse>;
+  }
+
+  /** Day-over-day open-interest deltas (top-N changed strikes). Requires Growth+. */
+  async exposureOiDiff(symbol: string, options: OiDiffOptions = {}): Promise<OiDiffResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.topN !== undefined) params['topN'] = options.topN;
+    return this._get(
+      `/v1/exposure/oi-diff/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<OiDiffResponse>;
+  }
+
+  // ── Volatility (additional) ───────────────────────────────────────────────
+
+  /** Per-expiry execution/liquidity scores. Requires Growth+. */
+  async liquidity(symbol: string): Promise<LiquidityResponse> {
+    return this._get(`/v1/liquidity/${_seg(symbol)}`) as Promise<LiquidityResponse>;
+  }
+
+  /** Skew term structure with vol-desk conventions (RR, butterfly). Requires Growth+. */
+  async skewTerm(symbol: string): Promise<SkewTermResponse> {
+    return this._get(`/v1/volatility/skew-term/${_seg(symbol)}`) as Promise<SkewTermResponse>;
+  }
+
+  /** Rolling spot/vol correlation (20d & 60d). Requires Growth+. */
+  async spotVolCorrelation(symbol: string): Promise<SpotVolCorrelationResponse> {
+    return this._get(`/v1/volatility/spot-vol-correlation/${_seg(symbol)}`) as Promise<SpotVolCorrelationResponse>;
+  }
+
+  /** Implied vs realized correlation / dispersion for an index basket. Requires Alpha+. */
+  async dispersion(options: DispersionOptions): Promise<DispersionResponse> {
+    const params: Record<string, string | number | undefined> = {
+      index: options.index,
+      symbols: options.symbols,
+    };
+    if (options.weights) params['weights'] = options.weights;
+    if (options.horizonDays !== undefined) params['horizon_days'] = options.horizonDays;
+    return this._get('/v1/dispersion', params) as Promise<DispersionResponse>;
+  }
+
+  /** Straddle-implied expected move per expiry. Requires Basic+. */
+  async expectedMove(symbol: string, options: ExpectedMoveOptions = {}): Promise<ExpectedMoveResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(
+      `/v1/expected-move/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ExpectedMoveResponse>;
+  }
+
+  /** Range-based realized (historical) vol estimators over 10/20/30-day windows. Requires Alpha+. */
+  async realizedVolatility(symbol: string): Promise<RealizedVolatilityResponse> {
+    return this._get(`/v1/volatility/realized/${_seg(symbol)}`) as Promise<RealizedVolatilityResponse>;
+  }
+
+  /** Conditional vol forecasts (EWMA λ=0.94, HAR-RV, GARCH(1,1) MLE). Requires Alpha+. */
+  async volatilityForecast(symbol: string, options: VolatilityForecastOptions = {}): Promise<VolatilityForecastResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.dist) params['dist'] = options.dist;
+    return this._get(
+      `/v1/volatility/forecast/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<VolatilityForecastResponse>;
+  }
+
+  // ── Macro / Universe ──────────────────────────────────────────────────────
+
+  /** VIX overvixing/undervixing regime (VIX vs SPX realized vol). Requires Growth+. */
+  async vixState(): Promise<VixStateResponse> {
+    return this._get('/v1/macro/vix-state') as Promise<VixStateResponse>;
+  }
+
+  /** Curated symbol directory (the queryable universe). Public. */
+  async universe(options: UniverseOptions = {}): Promise<UniverseResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.sort) params['sort'] = options.sort;
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    return this._get('/v1/universe', Object.keys(params).length ? params : undefined) as Promise<UniverseResponse>;
+  }
+
+  // ── Flow (additional) ─────────────────────────────────────────────────────
+
+  /** Full-tape Net Dealer Premium (dealer buy vs write). Requires Alpha+. */
+  async flowDealerPremium(symbol: string, options: FlowDealerPremiumOptions = {}): Promise<FlowDealerPremiumResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.windowMinutes !== undefined) params['windowMinutes'] = options.windowMinutes;
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(
+      `/v1/flow/options/${_seg(symbol)}/dealer-premium`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<FlowDealerPremiumResponse>;
+  }
+
+  /** Multi-resolution OHLCV+flow bars for a stock. Requires Alpha+. */
+  async flowStockBars(symbol: string, options: FlowStockBarsOptions): Promise<FlowStockBarsResponse> {
+    const params: Record<string, string | number | undefined> = { resolution: options.resolution };
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(`/v1/flow/stocks/${_seg(symbol)}/bars`, params) as Promise<FlowStockBarsResponse>;
+  }
+
+  // ── Zero-DTE Flow ─────────────────────────────────────────────────────────
+
+  /** Live 0DTE snapshot (flow-adjusted) plus flow-direction read. Requires Growth+. */
+  async flowZeroDteSnapshot(symbol: string): Promise<ZeroDteFlowSnapshotResponse> {
+    return this._get(`/v1/flow/zero-dte/snapshot/${_seg(symbol)}`) as Promise<ZeroDteFlowSnapshotResponse>;
+  }
+
+  /** Intraday 0DTE flow series (levels, regime, hedge flow over time). Requires Growth+. */
+  async flowZeroDteSeries(symbol: string, options: ZeroDteFlowSeriesOptions = {}): Promise<ZeroDteFlowSeriesResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.bar) params['bar'] = options.bar;
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(
+      `/v1/flow/zero-dte/series/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteFlowSeriesResponse>;
+  }
+
+  /** Dealer hedge-flow series for the 0DTE expiry. Requires Growth+. */
+  async flowZeroDteHedgeFlow(symbol: string, options: ZeroDteHedgeFlowOptions = {}): Promise<ZeroDteHedgeFlowResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.side) params['side'] = options.side;
+    if (options.bar) params['bar'] = options.bar;
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(
+      `/v1/flow/zero-dte/hedge-flow/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteHedgeFlowResponse>;
+  }
+
+  /** Strike × time 0DTE heatmap (gex/dex/vex/chex/oi/signed_flow). Requires Alpha+. */
+  async flowZeroDteHeatmap(symbol: string, options: ZeroDteHeatmapOptions = {}): Promise<ZeroDteHeatmapResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.metric) params['metric'] = options.metric;
+    if (options.mode) params['mode'] = options.mode;
+    if (options.bar) params['bar'] = options.bar;
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(
+      `/v1/flow/zero-dte/heatmap/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteHeatmapResponse>;
+  }
+
+  /** Per-strike signed 0DTE flow (delta/gamma dollars, contracts). Requires Alpha+. */
+  async flowZeroDteStrikeFlow(symbol: string, options: ZeroDteStrikeFlowOptions = {}): Promise<ZeroDteStrikeFlowResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.bar) params['bar'] = options.bar;
+    if (options.minutes !== undefined) params['minutes'] = options.minutes;
+    return this._get(
+      `/v1/flow/zero-dte/strike-flow/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteStrikeFlowResponse>;
+  }
+
+  // ── VRP (additional) ──────────────────────────────────────────────────────
+
+  /** Daily VRP time series (ATM IV vs realized, straddle, expected move). Requires Alpha+. */
+  async vrpHistory(symbol: string, options: VrpHistoryOptions = {}): Promise<VrpHistoryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.days !== undefined) params['days'] = options.days;
+    return this._get(
+      `/v1/vrp/${_seg(symbol)}/history`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<VrpHistoryResponse>;
+  }
+
+  // ── Strategy Signals (shared StrategyDecisionResponse envelope) ───────────
+
+  /** Directional options-flow imbalance signal + matching short vertical. Requires Growth+. */
+  async strategyFlowAnomaly(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
+    return this._strategy('flow-anomaly', symbol, this._strategyExpiryParams(options));
+  }
+
+  /** OPEX pin-risk / expiry-positioning signal (iron fly when pin likely). Requires Basic+. */
+  async strategyExpiryPositioning(symbol: string, options: StrategyExpiryPositioningOptions = {}): Promise<StrategyDecisionResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    if (options.minOpenInterest !== undefined) params['minOpenInterest'] = options.minOpenInterest;
+    if (options.wingWidth !== undefined) params['wingWidth'] = options.wingWidth;
+    return this._strategy('expiry-positioning', symbol, params);
+  }
+
+  /** Same-day 0DTE range-compression signal. Requires Growth+ and 0DTE access. */
+  async strategyZeroDte(symbol: string, options: StrategyZeroDteOptions = {}): Promise<StrategyDecisionResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    if (options.minOpenInterest !== undefined) params['minOpenInterest'] = options.minOpenInterest;
+    if (options.wingWidth !== undefined) params['wingWidth'] = options.wingWidth;
+    return this._strategy('zero-dte', symbol, params);
+  }
+
+  /** Dealer gamma-regime signal (long/short gamma positioning). Requires Growth+. */
+  async strategyDealerRegime(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
+    return this._strategy('dealer-regime', symbol, this._strategyExpiryParams(options));
+  }
+
+  /** Vol-carry / VRP-harvest signal (short vol structures). Requires Alpha+. */
+  async strategyVolCarry(symbol: string, options: StrategyVolCarryOptions = {}): Promise<StrategyDecisionResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    if (options.minOpenInterest !== undefined) params['minOpenInterest'] = options.minOpenInterest;
+    if (options.targetShortDelta !== undefined) params['targetShortDelta'] = options.targetShortDelta;
+    if (options.maxWidth !== undefined) params['maxWidth'] = options.maxWidth;
+    if (options.minCredit !== undefined) params['minCredit'] = options.minCredit;
+    return this._strategy('vol-carry', symbol, params);
+  }
+
+  /** Yield-enhancement signal (covered call / cash-secured put). Requires Growth+. */
+  async strategyYieldEnhancement(symbol: string, options: StrategyYieldEnhancementOptions = {}): Promise<StrategyDecisionResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    if (options.targetDelta !== undefined) params['targetDelta'] = options.targetDelta;
+    if (options.minOpenInterest !== undefined) params['minOpenInterest'] = options.minOpenInterest;
+    if (options.structure) params['structure'] = options.structure;
+    if (options.excludeEarningsBeforeExpiry !== undefined) {
+      params['excludeEarningsBeforeExpiry'] = String(options.excludeEarningsBeforeExpiry);
+    }
+    return this._strategy('yield-enhancement', symbol, params);
+  }
+
+  /** Vol-surface anomaly signal (mispriced wings / kinks). Requires Alpha+. */
+  async strategySurfaceAnomaly(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
+    return this._strategy('surface-anomaly', symbol, this._strategyExpiryParams(options));
+  }
+
+  /** Skew signal (pure-signal: 25d/10d skew read). Requires Growth+. */
+  async strategySkew(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
+    return this._strategy('skew', symbol, this._strategyExpiryParams(options));
+  }
+
+  /** Term-structure signal (contango/backwardation read). Requires Growth+. */
+  async strategyTermStructure(symbol: string): Promise<StrategyDecisionResponse> {
+    return this._strategy('term-structure', symbol);
+  }
+
+  /** Tail-pricing signal (wing richness / convexity). Requires Growth+. */
+  async strategyTailPricing(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
+    return this._strategy('tail-pricing', symbol, this._strategyExpiryParams(options));
+  }
+
+  /** Internal: build params for strategy endpoints that only take `expiry`. */
+  private _strategyExpiryParams(options: StrategyExpiryOptions): Record<string, string | number | undefined> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return params;
+  }
+
+  /** Internal: GET a strategy decision endpoint. */
+  private _strategy(
+    kind: string,
+    symbol: string,
+    params: Record<string, string | number | undefined> = {},
+  ): Promise<StrategyDecisionResponse> {
+    return this._get(
+      `/v1/strategies/${kind}/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<StrategyDecisionResponse>;
+  }
+
+  // ── Earnings ──────────────────────────────────────────────────────────────
+
+  /** Upcoming earnings calendar with implied moves. Requires Growth+. */
+  async earningsCalendar(options: EarningsCalendarOptions = {}): Promise<EarningsCalendarResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.days !== undefined) params['days'] = options.days;
+    if (options.symbols) params['symbols'] = options.symbols;
+    if (options.importance !== undefined) params['importance'] = options.importance;
+    return this._get('/v1/earnings/calendar', Object.keys(params).length ? params : undefined) as Promise<EarningsCalendarResponse>;
+  }
+
+  /** Earnings-implied expected-move decomposition. Requires Growth+. */
+  async earningsExpectedMove(symbol: string): Promise<EarningsExpectedMoveResponse> {
+    return this._get(`/v1/earnings/expected-move/${_seg(symbol)}`) as Promise<EarningsExpectedMoveResponse>;
+  }
+
+  /** Past earnings events (implied vs actual move, IV crush). Requires Growth+. */
+  async earningsHistory(symbol: string, options: EarningsHistoryOptions = {}): Promise<EarningsHistoryResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    return this._get(
+      `/v1/earnings/history/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<EarningsHistoryResponse>;
+  }
+
+  /** Expected + historical IV crush around earnings. Requires Growth+. */
+  async earningsIvCrush(symbol: string): Promise<EarningsIvCrushResponse> {
+    return this._get(`/v1/earnings/iv-crush/${_seg(symbol)}`) as Promise<EarningsIvCrushResponse>;
+  }
+
+  /** Earnings variance-risk-premium (implied vs realized move). Requires Alpha+. */
+  async earningsVrp(symbol: string): Promise<EarningsVrpResponse> {
+    return this._get(`/v1/earnings/vrp/${_seg(symbol)}`) as Promise<EarningsVrpResponse>;
+  }
+
+  /** Dealer positioning into earnings (levels, GEX by bucket). Requires Alpha+. */
+  async earningsDealerPositioning(symbol: string): Promise<EarningsDealerPositioningResponse> {
+    return this._get(`/v1/earnings/dealer-positioning/${_seg(symbol)}`) as Promise<EarningsDealerPositioningResponse>;
+  }
+
+  /** Earnings strategy-suitability scores (straddle/strangle/condor). Requires Alpha+. */
+  async earningsStrategies(symbol: string): Promise<EarningsStrategiesResponse> {
+    return this._get(`/v1/earnings/strategies/${_seg(symbol)}`) as Promise<EarningsStrategiesResponse>;
+  }
+
+  /** Cross-sectional earnings screener (rank by VRP, crush, move). Requires Alpha+. */
+  async earningsScreener(options: EarningsScreenerOptions = {}): Promise<EarningsScreenerResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.sort) params['sort'] = options.sort;
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    if (options.days !== undefined) params['days'] = options.days;
+    if (options.minImportance !== undefined) params['min_importance'] = options.minImportance;
+    return this._get('/v1/earnings/screener', Object.keys(params).length ? params : undefined) as Promise<EarningsScreenerResponse>;
+  }
+
+  // ── Structures (POST, pure-math) ──────────────────────────────────────────
+
+  /** At-expiry P&L curve, breakevens, max profit/loss for a multi-leg structure. Requires Basic+. */
+  async structurePnl(request: StructurePnlRequest): Promise<StructurePnlResponse> {
+    return this._post('/v1/structures/pnl', request) as Promise<StructurePnlResponse>;
+  }
+
+  /** Aggregate position Greeks for a multi-leg structure (BSM). Requires Basic+. */
+  async structureGreeks(request: StructureGreeksRequest): Promise<StructureGreeksResponse> {
+    return this._post('/v1/structures/greeks', request) as Promise<StructureGreeksResponse>;
+  }
+
+  // ── Screener (additional) ─────────────────────────────────────────────────
+
+  /** List the queryable screener fields and their types. Any authenticated tier. */
+  async screenerFields(): Promise<ScreenerFieldsResponse> {
+    return this._get('/v1/screener/fields') as Promise<ScreenerFieldsResponse>;
   }
 }

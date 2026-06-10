@@ -66,6 +66,8 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `stockQuote(ticker)` | Live stock quote (bid/ask/mid/last) |
 | `optionQuote(ticker, opts?)` | Option quotes with greeks. Requires Growth+ |
 | `surface(symbol)` | Volatility surface grid (public) |
+| `surfaceSvi(symbol)` | Live SVI-fitted volatility surface parameters per expiry. Requires Alpha+ |
+| `expectedMove(symbol, opts?)` | Straddle-implied expected move per expiry. Requires Basic+ |
 | `stockSummary(symbol)` | Comprehensive stock summary (price, vol, exposure, macro) |
 
 ### Historical Data
@@ -85,8 +87,12 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `chex(symbol, opts?)` | Charm exposure by strike |
 | `exposureSummary(symbol)` | Full exposure summary (GEX/DEX/VEX/CHEX + hedging). Requires Growth+ |
 | `exposureLevels(symbol)` | Key support/resistance levels from options exposure |
+| `exposureSheet(symbol, opts?)` | Unified per-strike exposure sheet (GEX/DEX/VEX/CHEX + DAG + OI). Requires Growth+ |
+| `exposureTermStructure(symbol)` | Per-greek exposure by DTE bucket and expiry. Requires Growth+ |
+| `exposureBasket({ symbols, weights? })` | Weighted cross-symbol exposure aggregate (basket GEX/DEX/VEX/CHEX). Requires Growth+ |
+| `exposureOiDiff(symbol, opts?)` | Day-over-day open-interest deltas (top-N changed strikes). Requires Growth+ |
 | `narrative(symbol)` | Verbal narrative analysis of exposure. Requires Growth+ |
-| `zeroDte(symbol, opts?)` | Real-time 0DTE analytics. Requires Growth+ |
+| `zeroDte(symbol, opts?)` | Real-time 0DTE analytics (`{ strikeRange?, expiry? }`). Requires Growth+ |
 
 ### Flow (live, simulation-aware) — requires the Alpha plan
 
@@ -116,6 +122,57 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `flowOptionsOutliers(opts?)` | Cross-symbol option-flow outliers |
 | `flowStocksLeaderboard(opts?)` | Cross-symbol stock-flow leaderboard |
 | `flowStocksOutliers(opts?)` | Cross-symbol stock-flow outliers |
+| `flowDealerPremium(symbol, opts?)` | Full-tape Net Dealer Premium (dealer buy vs write) |
+| `flowStockBars(symbol, { resolution, minutes? })` | Multi-resolution OHLCV+flow bars (1s/1m/5m/15m/30m/1h/4h) |
+
+### Zero-DTE Flow
+
+| Method | Description |
+|--------|-------------|
+| `flowZeroDteSnapshot(symbol)` | Live 0DTE snapshot (flow-adjusted) + flow-direction read. Requires Growth+ |
+| `flowZeroDteSeries(symbol, opts?)` | Intraday 0DTE flow series (levels, regime, hedge flow over time). Requires Growth+ |
+| `flowZeroDteHedgeFlow(symbol, opts?)` | Dealer hedge-flow series for the 0DTE expiry. Requires Growth+ |
+| `flowZeroDteHeatmap(symbol, opts?)` | Strike × time 0DTE heatmap (gex/dex/vex/chex/oi/signed_flow). Requires Alpha+ |
+| `flowZeroDteStrikeFlow(symbol, opts?)` | Per-strike signed 0DTE flow (delta/gamma dollars, contracts). Requires Alpha+ |
+
+### Strategy Signals
+
+Each GETs `/v1/strategies/{kind}/{symbol}` and returns a shared
+`StrategyDecisionResponse` (action, conviction, best matching multi-leg
+structure with legs, risk flags, data quality).
+
+| Method | Description |
+|--------|-------------|
+| `strategyFlowAnomaly(symbol, opts?)` | Directional options-flow imbalance + matching short vertical. Requires Growth+ |
+| `strategyExpiryPositioning(symbol, opts?)` | OPEX pin-risk / expiry-positioning (iron fly when pin likely). Requires Basic+ |
+| `strategyZeroDte(symbol, opts?)` | Same-day 0DTE range-compression signal. Requires Growth+ |
+| `strategyDealerRegime(symbol, opts?)` | Dealer gamma-regime (long/short gamma positioning). Requires Growth+ |
+| `strategyVolCarry(symbol, opts?)` | Vol-carry / VRP-harvest (short vol structures). Requires Alpha+ |
+| `strategyYieldEnhancement(symbol, opts?)` | Covered call / cash-secured put yield enhancement. Requires Growth+ |
+| `strategySurfaceAnomaly(symbol, opts?)` | Vol-surface anomaly (mispriced wings / kinks). Requires Alpha+ |
+| `strategySkew(symbol, opts?)` | Skew read (25d / 10d). Requires Growth+ |
+| `strategyTermStructure(symbol)` | Term-structure (contango / backwardation) read. Requires Growth+ |
+| `strategyTailPricing(symbol, opts?)` | Tail-pricing (wing richness / convexity). Requires Growth+ |
+
+### Earnings
+
+| Method | Description |
+|--------|-------------|
+| `earningsCalendar(opts?)` | Upcoming earnings calendar with implied moves. Requires Growth+ |
+| `earningsExpectedMove(symbol)` | Earnings-implied expected-move decomposition. Requires Growth+ |
+| `earningsHistory(symbol, opts?)` | Past earnings events (implied vs actual move, IV crush). Requires Growth+ |
+| `earningsIvCrush(symbol)` | Expected + historical IV crush around earnings. Requires Growth+ |
+| `earningsVrp(symbol)` | Earnings variance-risk-premium (implied vs realized move). Requires Alpha+ |
+| `earningsDealerPositioning(symbol)` | Dealer positioning into earnings (levels, GEX by bucket). Requires Alpha+ |
+| `earningsStrategies(symbol)` | Strategy-suitability scores (straddle/strangle/condor). Requires Alpha+ |
+| `earningsScreener(opts?)` | Cross-sectional earnings screener (rank by VRP, crush, move). Requires Alpha+ |
+
+### Structures (POST, pure-math)
+
+| Method | Description |
+|--------|-------------|
+| `structurePnl({ legs, ... })` | At-expiry P&L curve, breakevens, max profit/loss for a multi-leg structure. Requires Basic+ |
+| `structureGreeks({ legs, spot, ... })` | Aggregate position Greeks for a multi-leg structure (BSM). Requires Basic+ |
 
 ### Pricing and Sizing
 
@@ -131,6 +188,26 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 |--------|-------------|
 | `volatility(symbol)` | Comprehensive volatility analysis. Requires Growth+ |
 | `advVolatility(symbol)` | Advanced analytics: SVI, variance surface, arbitrage detection. Requires Alpha+ |
+| `liquidity(symbol)` | Per-expiry execution/liquidity scores. Requires Growth+ |
+| `skewTerm(symbol)` | Skew term structure with vol-desk conventions (risk reversal, butterfly). Requires Growth+ |
+| `spotVolCorrelation(symbol)` | Rolling spot/vol correlation (20d & 60d). Requires Growth+ |
+| `dispersion({ index, symbols, ... })` | Implied vs realized correlation / dispersion for an index basket. Requires Alpha+ |
+| `realizedVolatility(symbol)` | Range-based realized vol estimators (close-to-close, Parkinson, Garman-Klass, Rogers-Satchell, Yang-Zhang) over 10/20/30-day windows. Requires Alpha+ |
+| `volatilityForecast(symbol, opts?)` | Conditional vol forecasts (EWMA, HAR-RV, GARCH(1,1) MLE). Requires Alpha+ |
+
+### VRP (Variance Risk Premium)
+
+| Method | Description |
+|--------|-------------|
+| `vrp(symbol, opts?)` | VRP dashboard — IV-vs-RV spread, directional skew, term structure, GEX-conditioning, harvest score. Pass `{ date }` for a historical snapshot. Requires Alpha+ |
+| `vrpHistory(symbol, opts?)` | Daily VRP time series (ATM IV vs realized, straddle, expected move). Requires Alpha+ |
+
+### Macro / Universe
+
+| Method | Description |
+|--------|-------------|
+| `vixState()` | VIX overvixing / undervixing regime (VIX vs SPX realized vol). Requires Growth+ |
+| `universe(opts?)` | Curated symbol directory (the queryable universe). Public |
 
 ### Reference Data
 
@@ -156,6 +233,7 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 
 | Method | Description |
 |--------|-------------|
+| `screenerFields()` | List the queryable screener fields and their types (any authenticated tier) |
 | `account()` | Account info and quota |
 | `health()` | Health check (public) |
 
@@ -281,7 +359,11 @@ import type {
   IvOptions,
   KellyOptions,
   ZeroDteOptions,
-  ExposureHistoryOptions,
+  VrpOptions,
+  StrategyDecisionResponse,
+  EarningsCalendarResponse,
+  StructurePnlRequest,
+  DispersionOptions,
 } from 'flashalpha';
 ```
 

@@ -857,3 +857,254 @@ describe('timeout', () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// v1.1 endpoints
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Strategy signals ───────────────────────────────────────────────────────────
+
+describe('strategyVolCarry()', () => {
+  it('calls GET /v1/strategies/vol-carry/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { action: 'sell', symbol: 'SPY' });
+    const result = await makeClient(fetchFn).strategyVolCarry('SPY');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/strategies/vol-carry/SPY');
+    expect(calls[0].init?.method).toBe('GET');
+    expect((result as any).action).toBe('sell');
+  });
+
+  it('sends strategy query params when provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).strategyVolCarry('SPY', {
+      expiry: '2026-06-19',
+      targetShortDelta: 0.2,
+      maxWidth: 10,
+    });
+    const url = getCalledUrl(calls);
+    expect(url.searchParams.get('expiry')).toBe('2026-06-19');
+    expect(url.searchParams.get('targetShortDelta')).toBe('0.2');
+    expect(url.searchParams.get('maxWidth')).toBe('10');
+  });
+});
+
+describe('strategyExpiryPositioning()', () => {
+  it('calls GET /v1/strategies/expiry-positioning/{symbol} with params', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).strategyExpiryPositioning('QQQ', {
+      expiry: '2026-06-19',
+      wingWidth: 5,
+    });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/strategies/expiry-positioning/QQQ');
+    expect(url.searchParams.get('expiry')).toBe('2026-06-19');
+    expect(url.searchParams.get('wingWidth')).toBe('5');
+  });
+
+  it('omits query string when no options given', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).strategyExpiryPositioning('QQQ');
+    expect(getCalledUrl(calls).search).toBe('');
+  });
+});
+
+// ── Earnings ───────────────────────────────────────────────────────────────────
+
+describe('earningsCalendar()', () => {
+  it('calls GET /v1/earnings/calendar with params', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { events: [], count: 0 });
+    await makeClient(fetchFn).earningsCalendar({ days: 14, symbols: 'AAPL,MSFT', importance: 3 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/earnings/calendar');
+    expect(url.searchParams.get('days')).toBe('14');
+    expect(url.searchParams.get('symbols')).toBe('AAPL,MSFT');
+    expect(url.searchParams.get('importance')).toBe('3');
+  });
+});
+
+describe('earningsExpectedMove()', () => {
+  it('calls GET /v1/earnings/expected-move/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'AAPL' });
+    const result = await makeClient(fetchFn).earningsExpectedMove('AAPL');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/earnings/expected-move/AAPL');
+    expect((result as any).symbol).toBe('AAPL');
+  });
+});
+
+// ── Structures (POST) ──────────────────────────────────────────────────────────
+
+describe('structurePnl()', () => {
+  const bodyOf = (calls: MockFetchCall[]) => JSON.parse(calls[0].init?.body as string);
+
+  it('POSTs to /v1/structures/pnl with the legs body', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { breakevens: [546.4] });
+    const result = await makeClient(fetchFn).structurePnl({
+      legs: [
+        { action: 'buy', type: 'call', strike: 540, premium: 8.5 },
+        { action: 'sell', type: 'call', strike: 560, premium: 2.1 },
+      ],
+      points: 41,
+    });
+    expect(getCalledUrl(calls).pathname).toBe('/v1/structures/pnl');
+    expect(calls[0].init?.method).toBe('POST');
+    const body = bodyOf(calls);
+    expect(body.legs).toHaveLength(2);
+    expect(body.legs[0]).toEqual({ action: 'buy', type: 'call', strike: 540, premium: 8.5 });
+    expect(body.points).toBe(41);
+    expect((result as any).breakevens).toEqual([546.4]);
+  });
+
+  it('sends Content-Type: application/json', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).structurePnl({
+      legs: [{ action: 'buy', type: 'put', strike: 500, premium: 4 }],
+    });
+    const headers = calls[0].init?.headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+});
+
+// ── VRP (date) + VRP history ───────────────────────────────────────────────────
+
+describe('vrp() with date', () => {
+  it('calls GET /v1/vrp/{symbol} with no query when date omitted', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY' });
+    await makeClient(fetchFn).vrp('SPY');
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/vrp/SPY');
+    expect(url.search).toBe('');
+  });
+
+  it('sends date query param when provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).vrp('SPY', { date: '2026-03-20' });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/vrp/SPY');
+    expect(url.searchParams.get('date')).toBe('2026-03-20');
+  });
+});
+
+describe('vrpHistory()', () => {
+  it('calls GET /v1/vrp/{symbol}/history with days param', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY', history: [] });
+    await makeClient(fetchFn).vrpHistory('SPY', { days: 90 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/vrp/SPY/history');
+    expect(url.searchParams.get('days')).toBe('90');
+  });
+});
+
+// ── Zero-DTE (expiry) + Zero-DTE flow ──────────────────────────────────────────
+
+describe('zeroDte() with expiry', () => {
+  it('sends expiry query param when provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).zeroDte('SPY', { expiry: '2026-06-08' });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/exposure/zero-dte/SPY');
+    expect(url.searchParams.get('expiry')).toBe('2026-06-08');
+  });
+});
+
+describe('flowZeroDteSnapshot()', () => {
+  it('calls GET /v1/flow/zero-dte/snapshot/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY' });
+    await makeClient(fetchFn).flowZeroDteSnapshot('SPY');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/flow/zero-dte/snapshot/SPY');
+  });
+});
+
+// ── Dispersion / Universe / Expected move / SVI ────────────────────────────────
+
+describe('dispersion()', () => {
+  it('calls GET /v1/dispersion with required + optional params', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).dispersion({
+      index: 'SPX',
+      symbols: 'AAPL,MSFT,NVDA',
+      weights: '0.4,0.3,0.3',
+      horizonDays: 30,
+    });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/dispersion');
+    expect(url.searchParams.get('index')).toBe('SPX');
+    expect(url.searchParams.get('symbols')).toBe('AAPL,MSFT,NVDA');
+    expect(url.searchParams.get('weights')).toBe('0.4,0.3,0.3');
+    expect(url.searchParams.get('horizon_days')).toBe('30');
+  });
+});
+
+describe('universe()', () => {
+  it('calls GET /v1/universe with sort + limit', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbols: [] });
+    await makeClient(fetchFn).universe({ sort: 'symbol', limit: 100 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/universe');
+    expect(url.searchParams.get('sort')).toBe('symbol');
+    expect(url.searchParams.get('limit')).toBe('100');
+  });
+
+  it('omits query string with no options', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).universe();
+    expect(getCalledUrl(calls).search).toBe('');
+  });
+});
+
+describe('expectedMove()', () => {
+  it('calls GET /v1/expected-move/{symbol} with expiry', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {});
+    await makeClient(fetchFn).expectedMove('SPY', { expiry: '2026-06-19' });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/expected-move/SPY');
+    expect(url.searchParams.get('expiry')).toBe('2026-06-19');
+  });
+});
+
+describe('realizedVolatility()', () => {
+  it('calls GET /v1/volatility/realized/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'AAPL', estimators: {} });
+    await makeClient(fetchFn).realizedVolatility('AAPL');
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/volatility/realized/AAPL');
+    expect(url.search).toBe('');
+  });
+});
+
+describe('volatilityForecast()', () => {
+  it('calls GET /v1/volatility/forecast/{symbol} with dist', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'AAPL' });
+    await makeClient(fetchFn).volatilityForecast('AAPL', { dist: 'gaussian' });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/volatility/forecast/AAPL');
+    expect(url.searchParams.get('dist')).toBe('gaussian');
+  });
+
+  it('omits query string with no options', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'AAPL' });
+    await makeClient(fetchFn).volatilityForecast('AAPL');
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/volatility/forecast/AAPL');
+    expect(url.search).toBe('');
+  });
+});
+
+describe('surfaceSvi()', () => {
+  it('calls GET /v1/surface/svi/{symbol}', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY', slices: [] });
+    await makeClient(fetchFn).surfaceSvi('SPY');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/surface/svi/SPY');
+  });
+});
+
+// ── Flow stock bars ────────────────────────────────────────────────────────────
+
+describe('flowStockBars()', () => {
+  it('calls GET /v1/flow/stocks/{symbol}/bars with resolution + minutes', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY', bars: [] });
+    await makeClient(fetchFn).flowStockBars('SPY', { resolution: '5m', minutes: 120 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/flow/stocks/SPY/bars');
+    expect(url.searchParams.get('resolution')).toBe('5m');
+    expect(url.searchParams.get('minutes')).toBe('120');
+  });
+});
