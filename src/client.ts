@@ -96,6 +96,7 @@ import type {
   FlowDealerPremiumResponse,
   FlowDealerPremiumOptions,
   ZeroDteFlowSnapshotResponse,
+  ZeroDteSnapshotOptions,
   ZeroDteFlowSeriesResponse,
   ZeroDteFlowSeriesOptions,
   ZeroDteHedgeFlowResponse,
@@ -104,6 +105,8 @@ import type {
   ZeroDteHeatmapOptions,
   ZeroDteStrikeFlowResponse,
   ZeroDteStrikeFlowOptions,
+  ZeroDteFlowLeaderboardResponse,
+  ZeroDteLeaderboardOptions,
   FlowStockBarsResponse,
   FlowStockBarsOptions,
   VrpHistoryResponse,
@@ -1095,8 +1098,13 @@ export class FlashAlpha {
   // ── Zero-DTE Flow ─────────────────────────────────────────────────────────
 
   /** Live 0DTE snapshot (flow-adjusted) plus flow-direction read. Requires Growth+. */
-  async flowZeroDteSnapshot(symbol: string): Promise<ZeroDteFlowSnapshotResponse> {
-    return this._get(`/v1/flow/zero-dte/snapshot/${_seg(symbol)}`) as Promise<ZeroDteFlowSnapshotResponse>;
+  async flowZeroDteSnapshot(symbol: string, options: ZeroDteSnapshotOptions = {}): Promise<ZeroDteFlowSnapshotResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    return this._get(
+      `/v1/flow/zero-dte/snapshot/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteFlowSnapshotResponse>;
   }
 
   /** Intraday 0DTE flow series (levels, regime, hedge flow over time). Requires Growth+. */
@@ -1144,6 +1152,17 @@ export class FlashAlpha {
       `/v1/flow/zero-dte/strike-flow/${_seg(symbol)}`,
       Object.keys(params).length ? params : undefined,
     ) as Promise<ZeroDteStrikeFlowResponse>;
+  }
+
+  /** Cross-symbol 0DTE leaderboard ranked by a flow metric. Requires Alpha+. */
+  async flowZeroDteLeaderboard(options: ZeroDteLeaderboardOptions = {}): Promise<ZeroDteFlowLeaderboardResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.metric) params['metric'] = options.metric;
+    if (options.n !== undefined) params['n'] = options.n;
+    return this._get(
+      `/v1/flow/zero-dte/leaderboard`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ZeroDteFlowLeaderboardResponse>;
   }
 
   // ── VRP (additional) ──────────────────────────────────────────────────────

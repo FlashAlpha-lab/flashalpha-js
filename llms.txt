@@ -128,9 +128,11 @@ Pure-math multi-leg analytics, no market data required:
 
 ### Zero-DTE flow (`/v1/flow/zero-dte/*`)
 
-`flowZeroDteSnapshot`, `flowZeroDteSeries`, `flowZeroDteHedgeFlow`,
+`flowZeroDteSnapshot` (optional `expiry`), `flowZeroDteSeries`,
+`flowZeroDteHedgeFlow`,
 `flowZeroDteHeatmap` (strike × time gex/dex/vex/chex/oi/signed_flow),
-`flowZeroDteStrikeFlow` (per-strike signed delta/gamma dollars).
+`flowZeroDteStrikeFlow` (per-strike signed delta/gamma dollars),
+`flowZeroDteLeaderboard` (cross-symbol ranking by heat/pin_risk/abs_flow/charm_intensity).
 Growth+ / Alpha+.
 
 ### Vol surface, correlation & macro

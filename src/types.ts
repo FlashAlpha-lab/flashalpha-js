@@ -3745,6 +3745,12 @@ export interface ZeroDteFlowSnapshotResponse extends ZeroDteResponse {
   flow_direction?: ZeroDteFlowDirection;
 }
 
+/** Options for the 0DTE flow snapshot. */
+export interface ZeroDteSnapshotOptions {
+  /** Target 0DTE expiry (`YYYY-MM-DD`); defaults to today's expiry. */
+  expiry?: string;
+}
+
 /** One intraday 0DTE flow series bar. */
 export interface ZeroDteFlowSeriesBar {
   /** Bar timestamp (UTC). */
@@ -3879,6 +3885,36 @@ export interface ZeroDteStrikeFlowOptions {
   /** Only `1m` is supported in this phase. */
   bar?: '1m';
   minutes?: number;
+}
+
+/** One 0DTE leaderboard entry (one symbol's rank for the requested metric). */
+export interface ZeroDteFlowLeaderboardEntry {
+  /** 1-based position in the ranking. */
+  rank: number;
+  symbol: string;
+  /** Metric value used for ranking. */
+  value: number;
+}
+
+/** Cross-symbol 0DTE leaderboard — `GET /v1/flow/zero-dte/leaderboard`. Alpha+. */
+export interface ZeroDteFlowLeaderboardResponse {
+  /** Echoes the requested metric. */
+  metric: string;
+  /** Echoes the requested number of entries returned. */
+  n: number;
+  as_of: string;
+  /** `true` when the US options market is open. */
+  market_open: boolean;
+  /** Ranked entries, ascending by `rank`. */
+  entries: ZeroDteFlowLeaderboardEntry[];
+}
+
+/** Options for the 0DTE leaderboard. */
+export interface ZeroDteLeaderboardOptions {
+  /** `heat` (default) / `pin_risk` / `abs_flow` / `charm_intensity`. */
+  metric?: 'heat' | 'pin_risk' | 'abs_flow' | 'charm_intensity';
+  /** Number of entries to return (clamped to [1, 100]). */
+  n?: number;
 }
 
 // ── Flow stock bars ──────────────────────────────────────────────────────────

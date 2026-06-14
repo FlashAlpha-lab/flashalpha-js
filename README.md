@@ -129,11 +129,12 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 
 | Method | Description |
 |--------|-------------|
-| `flowZeroDteSnapshot(symbol)` | Live 0DTE snapshot (flow-adjusted) + flow-direction read. Requires Growth+ |
+| `flowZeroDteSnapshot(symbol, opts?)` | Live 0DTE snapshot (flow-adjusted) + flow-direction read (`opts.expiry`). Requires Growth+ |
 | `flowZeroDteSeries(symbol, opts?)` | Intraday 0DTE flow series (levels, regime, hedge flow over time). Requires Growth+ |
 | `flowZeroDteHedgeFlow(symbol, opts?)` | Dealer hedge-flow series for the 0DTE expiry. Requires Growth+ |
 | `flowZeroDteHeatmap(symbol, opts?)` | Strike × time 0DTE heatmap (gex/dex/vex/chex/oi/signed_flow). Requires Alpha+ |
 | `flowZeroDteStrikeFlow(symbol, opts?)` | Per-strike signed 0DTE flow (delta/gamma dollars, contracts). Requires Alpha+ |
+| `flowZeroDteLeaderboard(opts?)` | Cross-symbol 0DTE leaderboard ranked by metric (heat/pin_risk/abs_flow/charm_intensity). Requires Alpha+ |
 
 ### Strategy Signals
 

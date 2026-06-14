@@ -293,6 +293,7 @@ export type {
   // ── Zero-DTE flow ──
   ZeroDteFlowDirection,
   ZeroDteFlowSnapshotResponse,
+  ZeroDteSnapshotOptions,
   ZeroDteFlowSeriesBar,
   ZeroDteFlowSeriesResponse,
   ZeroDteFlowSeriesOptions,
@@ -305,6 +306,9 @@ export type {
   ZeroDteStrikeFlowBar,
   ZeroDteStrikeFlowResponse,
   ZeroDteStrikeFlowOptions,
+  ZeroDteFlowLeaderboardEntry,
+  ZeroDteFlowLeaderboardResponse,
+  ZeroDteLeaderboardOptions,
   // ── Flow: stock bars ──
   FlowStockBar,
   FlowStockBarsResponse,

@@ -1009,7 +1009,48 @@ describe('flowZeroDteSnapshot()', () => {
   it('calls GET /v1/flow/zero-dte/snapshot/{symbol}', async () => {
     const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY' });
     await makeClient(fetchFn).flowZeroDteSnapshot('SPY');
-    expect(getCalledUrl(calls).pathname).toBe('/v1/flow/zero-dte/snapshot/SPY');
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/flow/zero-dte/snapshot/SPY');
+    expect(url.search).toBe('');
+  });
+
+  it('sends expiry query param when provided', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, { symbol: 'SPY' });
+    await makeClient(fetchFn).flowZeroDteSnapshot('SPY', { expiry: '2026-06-08' });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/flow/zero-dte/snapshot/SPY');
+    expect(url.searchParams.get('expiry')).toBe('2026-06-08');
+  });
+});
+
+describe('flowZeroDteLeaderboard()', () => {
+  it('calls GET /v1/flow/zero-dte/leaderboard with metric + n', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {
+      metric: 'heat',
+      n: 5,
+      as_of: '2026-06-08T15:00:00Z',
+      market_open: true,
+      entries: [],
+    });
+    await makeClient(fetchFn).flowZeroDteLeaderboard({ metric: 'pin_risk', n: 5 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/flow/zero-dte/leaderboard');
+    expect(url.searchParams.get('metric')).toBe('pin_risk');
+    expect(url.searchParams.get('n')).toBe('5');
+  });
+
+  it('omits query string with no options', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, {
+      metric: 'heat',
+      n: 10,
+      as_of: '2026-06-08T15:00:00Z',
+      market_open: true,
+      entries: [],
+    });
+    await makeClient(fetchFn).flowZeroDteLeaderboard();
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/flow/zero-dte/leaderboard');
+    expect(url.search).toBe('');
   });
 });
 
