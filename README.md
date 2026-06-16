@@ -94,7 +94,7 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 | `narrative(symbol)` | Verbal narrative analysis of exposure. Requires Growth+ |
 | `zeroDte(symbol, opts?)` | Real-time 0DTE analytics (`{ strikeRange?, expiry? }`). Requires Growth+ |
 
-### Flow (live, simulation-aware) — requires the Alpha plan
+### Flow (live, simulation-aware) — Growth+ (raw tape, unusual-flow signals, OI simulator state & the full live bundle are Alpha)
 
 | Method | Description |
 |--------|-------------|
@@ -222,7 +222,7 @@ structure with legs, risk flags, data quality).
 
 | Method | Description |
 |--------|-------------|
-| `maxPain(symbol, options?)` | Max pain analysis with dealer alignment, pain curve, OI breakdown, pin probability, multi-expiry calendar (Growth+) |
+| `maxPain(symbol, options?)` | Max pain analysis with dealer alignment, pain curve, OI breakdown, pin probability, multi-expiry calendar (Basic+) |
 
 ### Screener
 
@@ -392,16 +392,18 @@ import type {
 
 MIT. See [LICENSE](LICENSE).
 
-## What the Alpha tier unlocks
+## What the paid tiers unlock
 
-Free and entry tiers cover live exposure analytics. The **Alpha tier ($1,499/mo)**
-adds the data you cannot get anywhere else:
+The free tier covers single-expiry GEX on equities, key levels, the BSM Greeks/IV
+calculator and stock quotes. Paid tiers add:
 
-- **Aggregate vanna and charm exposure.** FlashAlpha is the only public source for
-  these dealer-positioning aggregates.
-- **Point-in-time replay since 2018.** Backtest and trade the same code, with no
-  look-ahead and no training-serving skew.
-- **SVI vol surfaces, VRP analytics, higher-order Greeks**, uncached and unlimited.
+- **DEX, VEX (vanna) and CHEX (charm) exposure, plus max pain** — from the **Basic tier**
+  ($79/mo), with ETF and index symbols.
+- **Full-chain GEX, 0DTE and flow analytics** — from the **Growth tier** ($299/mo).
+- **Point-in-time replay since 2018, SVI vol surfaces, VRP analytics, higher-order Greeks**,
+  uncached and unlimited — the **Alpha tier** ($1,499/mo). FlashAlpha is one of the only
+  public APIs publishing aggregate vanna and charm exposure across the full universe, with
+  no look-ahead and no training-serving skew.
 
 Built for quants, prop desks, and vol funds. See the full picture and get a key:
 **[flashalpha.com/for-quant-teams](https://flashalpha.com/for-quant-teams?utm_source=github&utm_medium=readme&utm_campaign=repo-flashalpha-js)**
