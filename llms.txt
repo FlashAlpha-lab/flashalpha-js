@@ -199,5 +199,5 @@ Pricing and tier comparison: https://flashalpha.com.
 ## Companion SDKs
 
 - `flashalpha-historical` — point-in-time replay of every analytic
-  back to 2018-04-16, same response shapes, with built-in backtester.
+  back to 2017-01-03, same response shapes, with built-in backtester.
 - Python, .NET, Java, Go SDKs at https://github.com/FlashAlpha-lab.
