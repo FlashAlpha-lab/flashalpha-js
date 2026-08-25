@@ -16,6 +16,49 @@
  * absent. Hence the `?:` modifier on most members.
  */
 
+/**
+ * When each upstream feed last delivered to the node that served the response.
+ *
+ * Present on every successful response as `data_as_of`. The shape is fixed: every
+ * key appears on every endpoint, and a key is `null` when that node has not
+ * received anything on that feed since it started.
+ *
+ * Spot and options are reported separately because they arrive over different
+ * pipes and fail independently - an index chain can be current while the index
+ * level behind it is not.
+ *
+ * Read each feed against its OWN cadence rather than against `as_of`: `oi_feed`
+ * dated to the previous session's close is correct, because settled open interest
+ * is published once per session. `equity_options_feed` an hour behind during the
+ * regular session is not.
+ *
+ * A timestamp evidences that the feed delivered recently. It does not assert that
+ * every contract in a chain is equally current: an illiquid strike may not have
+ * quoted for hours while its feed is healthy.
+ */
+export interface DataAsOf {
+  /** Which node answered. Nodes hydrate independently, so their feeds can differ. */
+  node: string;
+  /** Equity and ETF spot quotes. */
+  equity_feed: string | null;
+  /** Equity and ETF option quotes. */
+  equity_options_feed: string | null;
+  /** Index spot (SPX, NDX, RUT, VIX). */
+  index_feed: string | null;
+  /** Index option quotes. */
+  index_options_feed: string | null;
+  /** Futures prices. */
+  futures_feed: string | null;
+  /** Futures option quotes. */
+  futures_options_feed: string | null;
+  /** Classified options and stock trade tape. */
+  flow_feed: string | null;
+  /** Settled open interest, dated to the prior 16:00 ET close. */
+  oi_feed: string | null;
+  /** VIX, VVIX, SKEW, MOVE, SPX and Fear & Greed. Reports its OLDEST component. */
+  macro_feed: string | null;
+}
+
 export interface ZeroDteRegime {
   label?: string;
   description?: string;
@@ -213,6 +256,10 @@ export interface ZeroDteResponse {
   no_zero_dte?: boolean;
   message?: string;
   next_zero_dte_expiry?: string | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -273,6 +320,10 @@ export interface ExposureSummaryResponse {
   interpretation?: ExposureSummaryInterpretation;
   hedging_estimate?: ExposureSummaryHedgingEstimate;
   zero_dte?: ExposureSummaryZeroDte;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -481,6 +532,10 @@ export interface VrpResponse {
   warnings?: string[];
   /** Macro context. See {@link VrpMacro}. */
   macro?: VrpMacro;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -628,6 +683,10 @@ export interface MaxPainResponse {
    * gamma magnitude (20%). Most meaningful for near-term expiries.
    */
   pin_probability?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -927,6 +986,10 @@ export interface StockSummaryResponse {
   /** Full dealer-exposure block. `null` when no usable options data. */
   exposure?: StockSummaryExposure | null;
   macro?: StockSummaryMacro;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1019,6 +1082,10 @@ export interface NarrativeResponse {
   /** ET wall-clock timestamp this snapshot was computed for. */
   as_of?: string;
   narrative?: Narrative;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1065,6 +1132,10 @@ export interface ExposureLevelsResponse {
   /** ET wall-clock timestamp this snapshot was computed for. */
   as_of?: string;
   levels?: ExposureLevels;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1167,6 +1238,10 @@ export interface PricingGreeksResponse {
   third_order?: PricingThirdOrder;
   /** Additional non-greek scalars (lambda, veta). */
   additional?: PricingAdditional;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1391,6 +1466,10 @@ export interface VolatilityResponse {
   hedging_scenarios?: VolatilityHedgingScenario[];
   /** Liquidity stats — ATM vs wing spreads and contract counts. */
   liquidity?: VolatilityLiquidity;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1549,6 +1628,10 @@ export interface AdvVolatilityResponse {
   variance_swap_fair_values?: AdvVolatilityVarianceSwapFairValue[];
   /** 2D vanna / charm / volga / speed greek surfaces. */
   greeks_surfaces?: AdvVolatilityGreeksSurfaces;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1586,6 +1669,10 @@ export interface SurfaceResponse {
   iv?: number[][];
   /** Count of option-chain expiry slices that contributed to the calibration. */
   slices_used?: number;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1640,6 +1727,10 @@ export interface GexResponse {
   net_gex_label?: string | null;
   /** Per-strike GEX breakdown. */
   strikes?: GexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One row of the DEX-by-strike table. */
@@ -1659,6 +1750,10 @@ export interface DexResponse {
   /** Net dealer delta exposure summed across the chain. */
   net_dex?: number | null;
   strikes?: DexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One row of the VEX-by-strike table. */
@@ -1680,6 +1775,10 @@ export interface VexResponse {
   /** Plain-English interpretation of the net vanna regime. */
   vex_interpretation?: string | null;
   strikes?: VexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One row of the CHEX-by-strike table. */
@@ -1701,6 +1800,10 @@ export interface ChexResponse {
   /** Plain-English interpretation of the net charm regime. */
   chex_interpretation?: string | null;
   strikes?: ChexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1764,6 +1867,10 @@ export interface OptionQuoteResponse {
   volume?: number | null;
   /** Underlying ticker, present on some response shapes. */
   underlying?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1794,6 +1901,10 @@ export interface StockQuoteResponse {
   lastPrice?: number | null;
   /** ISO timestamp of the last quote tick. */
   lastUpdate?: string | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1837,6 +1948,10 @@ export interface PricingIvResponse {
   implied_volatility?: number;
   /** Implied volatility in percent (e.g. 20.0). */
   implied_volatility_pct?: number;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1932,6 +2047,10 @@ export interface PricingKellyResponse {
   analysis?: PricingKellyAnalysis;
   /** Plain-English sizing recommendation. Safe to surface verbatim. */
   recommendation?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -1968,6 +2087,10 @@ export interface AccountResponse {
   remaining?: string;
   /** ISO timestamp at which `usage_today` resets. */
   resets_at?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -1979,6 +2102,10 @@ export interface AccountResponse {
 export interface TickersResponse {
   tickers?: string[];
   count?: number;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -1993,6 +2120,10 @@ export interface SymbolsResponse {
   count?: number;
   note?: string;
   last_updated?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One row of the `expirations` array on `OptionsMetaResponse`. */
@@ -2019,6 +2150,10 @@ export interface OptionsMetaResponse {
   expiration_count?: number;
   /** Total contract count across all expirations and strikes. */
   total_contracts?: number;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2029,6 +2164,10 @@ export interface OptionsMetaResponse {
  */
 export interface HealthResponse {
   status?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2064,6 +2203,10 @@ export interface ScreenerMeta {
 export interface ScreenerResponse {
   meta?: ScreenerMeta;
   data?: Record<string, unknown>[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Flow (live, simulation-aware) ───────────────────────────────────────────
@@ -2108,6 +2251,10 @@ export interface FlowLevelsResponse {
   live_put_wall?: number | null;
   /** Live max-pain strike (most option value expires worthless). */
   live_max_pain?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Component scores (0–100) behind the `live_pin_risk` headline. */
@@ -2148,6 +2295,10 @@ export interface FlowPinRiskResponse {
   time_to_close_hours?: number | null;
   /** Component scores behind `live_pin_risk`. */
   breakdown?: FlowPinRiskBreakdown;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2176,6 +2327,10 @@ export interface FlowSummaryResponse {
   live_gex?: number | null;
   /** % shift in net GEX caused by today's flow vs the settled book. `null` when the settled baseline is zero. */
   flow_gex_pct_shift?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2204,6 +2359,10 @@ export interface FlowOiResponse {
   contracts_total?: number;
   /** Contracts that have printed at least one trade today. */
   contracts_with_flow?: number;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2228,6 +2387,10 @@ export interface FlowGexResponse {
   live_gamma_flip?: number | null;
   /** Per-strike rows (identical schema to settled GEX). */
   strikes?: GexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2248,6 +2411,10 @@ export interface FlowDexResponse {
   live_net_dex?: number | null;
   /** Per-strike DEX breakdown. */
   strikes?: DexStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2289,6 +2456,10 @@ export interface FlowDealerRiskResponse {
   flow_direction?: string;
   /** Plain-English summary of whether flow has moved the book — safe to surface verbatim. */
   description?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2365,6 +2536,10 @@ export interface FlowLiveResponse {
   live_pin_risk?: number;
   /** Nested settled-vs-live dealer-risk block. */
   flow_adjusted_dealer_risk?: FlowAdjustedDealerRisk;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Raw flow data (camelCase wire keys, proxied from the ingest tier) ────────
@@ -2412,6 +2587,10 @@ export interface FlowOptionRecentResponse {
   totalAvailable?: number;
   /** Newest-first list of trade prints. */
   trades?: FlowOptionTrade[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2439,6 +2618,10 @@ export interface FlowOptionSummaryResponse {
   biggestSingleTrade?: number;
   /** Timestamp of the most recent print; absent when no trades. */
   lastTradeUtc?: string | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** A single large option print (`blocks[]` element). */
@@ -2474,6 +2657,10 @@ export interface FlowOptionBlocksResponse {
   count?: number;
   /** Newest-first list of large prints. */
   blocks?: FlowOptionBlock[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One per-minute option-flow bucket (`buckets[]` element). */
@@ -2516,6 +2703,10 @@ export interface FlowOptionHistoryResponse {
   count?: number;
   /** Newest-first list of per-minute aggregates. */
   buckets?: FlowOptionHistoryBucket[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2550,6 +2741,10 @@ export interface FlowOptionCumulativeResponse {
   count?: number;
   /** Chronological cumulative net-flow series. */
   points?: FlowCumulativePoint[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** A single stock trade print (`trades[]` element). */
@@ -2583,6 +2778,10 @@ export interface FlowStockRecentResponse {
   totalAvailable?: number;
   /** Newest-first list of trade prints. */
   trades?: FlowStockTrade[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2606,6 +2805,10 @@ export interface FlowStockSummaryResponse {
   biggestSingleTrade?: number;
   /** Absent when the symbol has no trades. */
   lastTradeUtc?: string | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** A single large stock print (`blocks[]` element). */
@@ -2637,6 +2840,10 @@ export interface FlowStockBlocksResponse {
   count?: number;
   /** Newest-first list of large prints. */
   blocks?: FlowStockBlock[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2684,6 +2891,10 @@ export interface FlowStockHistoryResponse {
   count?: number;
   /** Newest-first list of per-minute aggregates. */
   buckets?: FlowStockHistoryBucket[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2699,6 +2910,10 @@ export interface FlowStockCumulativeResponse {
   count?: number;
   /** Chronological cumulative net-flow series. */
   points?: FlowCumulativePoint[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2740,6 +2955,10 @@ export interface FlowOptionLeaderboardResponse {
   buyers?: FlowOptionLeaderRow[];
   /** Top net-dollar sellers. */
   sellers?: FlowOptionLeaderRow[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** One flagged underlying in an outliers table (option or stock). */
@@ -2795,6 +3014,10 @@ export interface FlowOptionOutliersResponse {
   limit?: number;
   /** Imbalance-ranked flagged underlyings. */
   outliers?: FlowOutlierRow[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2835,6 +3058,10 @@ export interface FlowStockLeaderboardResponse {
   buyers?: FlowStockLeaderRow[];
   /** Top net-dollar sellers. */
   sellers?: FlowStockLeaderRow[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -2854,6 +3081,10 @@ export interface FlowStockOutliersResponse {
   limit?: number;
   /** Imbalance-ranked flagged symbols. */
   outliers?: FlowOutlierRow[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Flow signals (unusual-flow feed, Alpha+) ──────────────────────────────
@@ -3020,6 +3251,10 @@ export interface FlowSignalsResponse {
   count?: number;
   /** Signals, highest score first. */
   signals?: FlowSignal[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /**
@@ -3058,6 +3293,10 @@ export interface FlowSignalsSummaryResponse {
   closing_premium?: number;
   /** Highest-scoring signals (≤ 10). Same shape as `FlowSignal`. */
   top_signals?: FlowSignal[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 
@@ -3167,6 +3406,10 @@ export interface StrategyDecisionResponse {
   avoid_if?: string[];
   /** Gate on this before trading. */
   data_quality?: StrategyDataQuality;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Optional `expiry` filter shared by most strategy endpoints. */
@@ -3234,6 +3477,10 @@ export interface SurfaceSviResponse {
   market_open?: boolean;
   /** Ordered by `days_to_expiry`. */
   svi_parameters?: SurfaceSviSlice[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Expected move ────────────────────────────────────────────────────────────
@@ -3259,6 +3506,10 @@ export interface ExpectedMoveResponse {
   as_of?: string;
   /** Ordered by expiry. */
   expected_moves?: ExpectedMoveItem[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `expectedMove`. */
@@ -3327,6 +3578,10 @@ export interface ExposureSheetResponse {
   lis?: ExposureSheetLis | null;
   peaks?: ExposureSheetPeak[];
   strikes?: ExposureSheetStrike[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `exposureSheet`. */
@@ -3371,6 +3626,10 @@ export interface ExposureTermStructureResponse {
   as_of?: string;
   by_dte_bucket?: ExposureTermStructureBucket[];
   by_expiry?: ExposureTermStructureExpiry[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Exposure basket ──────────────────────────────────────────────────────────
@@ -3404,6 +3663,10 @@ export interface ExposureBasketResponse {
   missing_symbols?: string[];
   aggregate?: ExposureBasketAggregate;
   constituents?: ExposureBasketConstituent[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `exposureBasket` (`symbols` is required). */
@@ -3438,6 +3701,10 @@ export interface OiDiffResponse {
   total_put_oi_change?: number | null;
   /** Sorted by `|oi_change|` descending. */
   top_oi_changes?: OiDiffChange[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `exposureOiDiff`. */
@@ -3472,6 +3739,10 @@ export interface LiquidityResponse {
   /** Number of expiries labelled `illiquid`. */
   thin_expiry_count?: number | null;
   expiries?: LiquidityExpiry[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Skew term ────────────────────────────────────────────────────────────────
@@ -3500,6 +3771,10 @@ export interface SkewTermResponse {
   underlying_price?: number | null;
   as_of?: string;
   expiries?: SkewTermExpiry[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Spot-vol correlation ─────────────────────────────────────────────────────
@@ -3514,6 +3789,10 @@ export interface SpotVolCorrelationResponse {
   data_points_20d?: number | null;
   data_points_60d?: number | null;
   interpretation?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Dispersion ───────────────────────────────────────────────────────────────
@@ -3541,6 +3820,10 @@ export interface DispersionResponse {
   implied_vol_basket?: number | null;
   /** Sorted descending by `contribution_to_basket_vol`. */
   top_contributors?: DispersionContributor[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `dispersion` (`index` and `symbols` are required). */
@@ -3576,6 +3859,10 @@ export interface RealizedVolatilityResponse {
     rogers_satchell?: RealizedVolatilityWindow;
     yang_zhang?: RealizedVolatilityWindow;
   };
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Volatility forecast ──────────────────────────────────────────────────────
@@ -3637,6 +3924,10 @@ export interface VolatilityForecastResponse {
   ewma?: VolatilityForecastEwma;
   har_rv?: VolatilityForecastHarRv;
   garch?: VolatilityForecastGarch;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `volatilityForecast`. */
@@ -3659,6 +3950,10 @@ export interface VixStateResponse {
   /** `overvixing` / `undervixing` / `neutral`. */
   state?: string;
   interpretation?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Universe ─────────────────────────────────────────────────────────────────
@@ -3681,6 +3976,10 @@ export interface UniverseResponse {
   /** Echoes the effective sort (`tier` / `symbol`). */
   sort?: string;
   symbols?: UniverseSymbol[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `universe`. */
@@ -3708,6 +4007,10 @@ export interface FlowDealerPremiumResponse {
   total_premium?: number | null;
   trade_count?: number | null;
   bucket_count?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `flowDealerPremium`. */
@@ -3782,6 +4085,10 @@ export interface ZeroDteFlowSeriesResponse {
   bar_size?: string;
   /** Ascending by `t`; empty when no samples in the window. */
   bars?: ZeroDteFlowSeriesBar[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for the 0DTE flow series. */
@@ -3810,6 +4117,10 @@ export interface ZeroDteHedgeFlowResponse {
   side?: string;
   bar_size?: string;
   bars?: ZeroDteHedgeFlowBar[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for the 0DTE hedge-flow series. */
@@ -3845,6 +4156,10 @@ export interface ZeroDteHeatmapResponse {
   bars?: ZeroDteHeatmapBar[];
   /** Reserved for sampler-gap intervals. */
   gap_intervals?: unknown[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for the 0DTE heatmap. */
@@ -3878,6 +4193,10 @@ export interface ZeroDteStrikeFlowResponse {
   strikes_grid?: number[];
   bars?: ZeroDteStrikeFlowBar[];
   gap_intervals?: unknown[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for the 0DTE strike-flow series. */
@@ -3907,6 +4226,10 @@ export interface ZeroDteFlowLeaderboardResponse {
   market_open: boolean;
   /** Ranked entries, ascending by `rank`. */
   entries: ZeroDteFlowLeaderboardEntry[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for the 0DTE leaderboard. */
@@ -3949,6 +4272,10 @@ export interface FlowStockBarsResponse {
   dataStartUtc?: string | null;
   /** Oldest-first bars. */
   bars?: FlowStockBar[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `flowStockBars` (`resolution` is required). */
@@ -3983,6 +4310,10 @@ export interface VrpHistoryResponse {
   days?: number | null;
   data_points?: number | null;
   history?: VrpHistoryItem[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `vrpHistory`. */
@@ -4018,6 +4349,10 @@ export interface EarningsCalendarEvent {
 export interface EarningsCalendarResponse {
   events?: EarningsCalendarEvent[];
   count?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `earningsCalendar`. */
@@ -4049,6 +4384,10 @@ export interface EarningsExpectedMoveResponse {
   days_to_event?: number | null;
   /** Null when pre/post-event expiry IVs can't be resolved. */
   expected_move?: EarningsExpectedMoveBlock | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 export interface EarningsHistoryItem {
@@ -4072,6 +4411,10 @@ export interface EarningsHistoryResponse {
   symbol?: string;
   count?: number | null;
   history?: EarningsHistoryItem[];
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `earningsHistory`. */
@@ -4104,6 +4447,10 @@ export interface EarningsIvCrushResponse {
   /** Null when no upcoming event or the term structure can't be resolved. */
   current_estimate?: EarningsIvCrushEstimate | null;
   distribution?: EarningsIvCrushDistribution;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 export interface EarningsVrpBlock {
@@ -4134,6 +4481,10 @@ export interface EarningsVrpResponse {
   days_to_event?: number | null;
   earnings_vrp?: EarningsVrpBlock;
   surprise_reaction?: EarningsSurpriseReaction;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 export interface EarningsDealerLevels {
@@ -4172,6 +4523,10 @@ export interface EarningsDealerPositioningResponse {
   charm_acceleration?: number | null;
   /** `positive_gamma` / `negative_gamma` / `undetermined`. */
   regime?: string;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 export interface EarningsStrategyScores {
@@ -4197,6 +4552,10 @@ export interface EarningsStrategiesResponse {
   earnings_date?: string;
   scores?: EarningsStrategyScores;
   context?: EarningsStrategyContext;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 export interface EarningsScreenerEvent {
@@ -4217,6 +4576,10 @@ export interface EarningsScreenerResponse {
   events?: EarningsScreenerEvent[];
   /** Total matched events before `limit`. */
   count?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** Options for `earningsScreener`. */
@@ -4272,6 +4635,10 @@ export interface StructurePnlResponse {
   /** `null` when unbounded on that side. */
   max_profit?: number | null;
   max_loss?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 /** A leg for a structure Greeks request (carries its own expiry + IV). */
@@ -4324,6 +4691,10 @@ export interface StructureGreeksResponse {
   /** Echoes the request legs. */
   legs?: StructureGreeksLeg[];
   position_greeks?: StructurePositionGreeks;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
 
 // ── Screener fields ──────────────────────────────────────────────────────────
@@ -4339,4 +4710,8 @@ export interface ScreenerFieldsResponse {
   /** Sorted by `name`. */
   fields?: ScreenerField[];
   count?: number | null;
+  /** Deployment that produced this response. */
+  endpoint_version?: string;
+  /** Per-feed freshness of the data behind this response. */
+  data_as_of?: DataAsOf;
 }
