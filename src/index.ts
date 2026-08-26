@@ -355,4 +355,6 @@ export type {
   // ── Screener fields ──
   ScreenerField,
   ScreenerFieldsResponse,
+  // ── Response envelope ──
+  DataAsOf,
 } from './types';
