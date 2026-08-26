@@ -59,15 +59,16 @@ Get your API key at [flashalpha.com](https://flashalpha.com).
 
 ## Data provenance: `data_as_of`
 
-Every successful response carries `data_as_of`, reporting when each upstream feed last
-delivered to the node that answered, plus `endpoint_version` identifying the deployment
-that produced it.
+Every successful JSON-object response carries `data_as_of`, reporting when each upstream
+feed last delivered to the node that answered, plus `endpoint_version` identifying the
+deployment that produced it. That is every method on this client except the handful that
+return a bare JSON array - see the note at the end of this section.
 
 ```ts
 const gex = await fa.gex('SPY');
 
 gex.data_as_of.equity_options_feed; // '2026-08-25T18:48:58.204Z'
-gex.data_as_of.oi_feed;             // '2026-08-22T20:00:00.000Z'  prior session's close
+gex.data_as_of.oi_feed;             // '2026-08-24T20:00:00.000Z'  prior session's close
 gex.data_as_of.node;                // 'fa2'
 gex.endpoint_version;               // '2026.08.25'
 ```
@@ -76,7 +77,7 @@ gex.endpoint_version;               // '2026.08.25'
 untyped passthrough:
 
 ```ts
-import type { DataAsOf } from '@flashalpha/sdk';
+import type { DataAsOf } from 'flashalpha';
 ```
 
 | Field | Feed | Expected cadence |
@@ -111,8 +112,13 @@ import type { DataAsOf } from '@flashalpha/sdk';
   contract in the payload, depending on the endpoint. `data_as_of` describes the feeds
   behind it.
 
-Endpoints returning a bare JSON array carry the same information in the
-`X-Data-As-Of` and `X-Endpoint-Version` response headers.
+### Bare-array endpoints
+
+A few endpoints return a bare JSON array, which has nowhere to put an envelope in the
+body. The API sends the same information in the `X-Data-As-Of` and `X-Endpoint-Version`
+response headers instead - but this client returns the parsed body only and does not
+surface response headers, so the envelope is **not reachable through those methods**.
+Call the HTTP endpoint directly if you need provenance for one of them.
 
 Full reference: <https://flashalpha.com/docs/lab-api-overview#response-envelope> and the
 methodology whitepaper at <https://flashalpha.com/methodology#freshness-reporting>.
