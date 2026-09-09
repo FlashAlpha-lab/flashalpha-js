@@ -58,7 +58,9 @@ import { FlashAlpha } from 'flashalpha';
 const fa = new FlashAlpha(process.env.FLASHALPHA_API_KEY!);
 
 const summary = await fa.exposureSummary('SPY');
-console.log(summary.regime, summary.gamma_flip);
+// `gamma_flip` is nullable; `gamma_flip_status` is 'available' or the reason
+// the level was withheld (e.g. 'no_boundary'). `regime` is 'unknown' when withheld.
+console.log(summary.regime, summary.gamma_flip, summary.gamma_flip_status);
 ```
 
 ## Key endpoints
