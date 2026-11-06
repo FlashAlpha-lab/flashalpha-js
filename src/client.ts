@@ -66,6 +66,7 @@ import type {
   VrpResponse,
   ZeroDteResponse,
   // ── v1.1 additions ──
+  SellWindowResponse,
   StrategyDecisionResponse,
   StrategyExpiryOptions,
   StrategyExpiryPositioningOptions,
@@ -1249,6 +1250,22 @@ export class FlashAlpha {
   /** Tail-pricing signal (wing richness / convexity). Requires Growth+. */
   async strategyTailPricing(symbol: string, options: StrategyExpiryOptions = {}): Promise<StrategyDecisionResponse> {
     return this._strategy('tail-pricing', symbol, this._strategyExpiryParams(options));
+  }
+
+  // ── sell-window (own response shape) ──────────────────────────────────────
+
+  /**
+   * Should you sell options today? One answer per session for SPY, QQQ and IWM,
+   * built from more than 5 million backtests. For four listed expiries (same day,
+   * then the expiries closest to one week, two weeks and one month out) each window
+   * says `sell`, `skip` or `unavailable`. On a sell it lists the trades to place, with
+   * strikes, quotes and the exit rule. Treat `unavailable` like a skip.
+   *
+   * Requires Basic+ through November 2026, Growth+ from December 1, 2026.
+   * Docs: https://flashalpha.com/docs/lab-api-strategies-sell-window
+   */
+  async sellWindow(symbol: string): Promise<SellWindowResponse> {
+    return this._get(`/v1/strategies/sell-window/${_seg(symbol)}`) as Promise<SellWindowResponse>;
   }
 
   /** Internal: build params for strategy endpoints that only take `expiry`. */

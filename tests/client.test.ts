@@ -1149,3 +1149,45 @@ describe('flowStockBars()', () => {
     expect(url.searchParams.get('minutes')).toBe('120');
   });
 });
+
+describe('sellWindow()', () => {
+  const sellDay = {
+    symbol: 'SPY',
+    session: '2026-10-16',
+    spot: 772.255,
+    quoted_at: '2026-10-16T13:35:00Z',
+    legs_indicative: false,
+    windows: [
+      {
+        expiry: '2026-10-16',
+        days_to_expiry: 0,
+        action: 'sell',
+        candidates: [
+          {
+            structure: 'short_put',
+            exit: 'expiry',
+            legs: [{ side: 'sell', quantity: 1, type: 'put', strike: 769, delta: -0.19, bid: 0.39, ask: 0.4 }],
+            mid_credit: 0.395,
+          },
+        ],
+      },
+      { expiry: '2026-10-23', days_to_expiry: 7, action: 'skip' },
+      { expiry: '2026-10-30', days_to_expiry: 14, action: 'skip' },
+      { action: 'unavailable' },
+    ],
+  };
+
+  it('calls GET /v1/strategies/sell-window/{symbol} and returns the answer', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, sellDay);
+    const answer = await makeClient(fetchFn).sellWindow('SPY');
+    expect(getCalledUrl(calls).pathname).toBe('/v1/strategies/sell-window/SPY');
+    expect(getCalledUrl(calls).search).toBe('');
+    expect(answer.windows?.[0].candidates?.[0].legs?.[0].strike).toBe(769);
+    expect(answer.windows?.[3].expiry).toBeUndefined();
+  });
+
+  it('throws TierRestrictedError below the required plan', async () => {
+    const { fetchFn } = makeMockFetch(403, { error: 'tier_restricted', message: 'Requires Basic plan.' });
+    await expect(makeClient(fetchFn).sellWindow('SPY')).rejects.toBeInstanceOf(TierRestrictedError);
+  });
+});
