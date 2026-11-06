@@ -4798,7 +4798,8 @@ export interface SellWindowWindow {
  * Should you sell options today? Response of
  * `GET /v1/strategies/sell-window/{symbol}`.
  *
- * `spot`, `quoted_at` and `legs_indicative` are present when a window sells.
+ * `spot`, `quoted_at` and `legs_indicative` are present when a window sells and an
+ * option chain could be loaded.
  */
 export interface SellWindowResponse {
   symbol?: string;
