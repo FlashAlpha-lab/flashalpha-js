@@ -193,6 +193,8 @@ methodology whitepaper at <https://flashalpha.com/methodology#freshness-reportin
 | `exposureTermStructure(symbol)` | Per-greek exposure by DTE bucket and expiry. Requires Growth+ |
 | `exposureBasket({ symbols, weights? })` | Weighted cross-symbol exposure aggregate (basket GEX/DEX/VEX/CHEX). Requires Growth+ |
 | `exposureOiDiff(symbol, opts?)` | Day-over-day open-interest deltas (top-N changed strikes). Requires Growth+ |
+| `expiryImpact(symbol, { expiry?, limit? })` | Gamma concentration with one expiry excluded (SPY, QQQ). Requires Growth+ |
+| `strikeDependency(symbol, { strike })` | One exact strike's gamma attributed to its expiries (SPY, QQQ). Requires Growth+ |
 | `narrative(symbol)` | Verbal narrative analysis of exposure. Requires Growth+ |
 | `zeroDte(symbol, opts?)` | Real-time 0DTE analytics (`{ strikeRange?, expiry? }`). Requires Growth+ |
 
@@ -371,6 +373,36 @@ await fa.zeroDte('SPY', {
   strikeRange: 10, // number of strikes around ATM to include
 });
 ```
+
+### Expiry impact and strike dependency (SPY, QQQ)
+
+Two Growth+ views of how much of the current gamma concentration rests on one expiry.
+
+- **Expiry impact** compares the current SPY or QQQ gamma distribution with the same
+  captured inputs after excluding one expiry. Spot, Greeks and open interest are held
+  fixed, so it measures how much of today's concentration depends on one maturity. It is
+  not a forecast of post-expiry prices, dealer hedging or the next session's chain.
+- **Strike dependency** attributes the gamma at one exact observed strike to its
+  expiries, and names the dominant expiry. It reports concentration at that strike, not
+  a support/resistance probability.
+
+```typescript
+import { FlashAlpha } from 'flashalpha';
+
+const fa = new FlashAlpha('YOUR_API_KEY');
+
+// expiry: 'yyyy-MM-dd' (optional, defaults to the nearest active eligible expiry)
+const expiryImpact = await fa.expiryImpact('SPY', { limit: 5 });
+console.log(expiryImpact.impact.removed_gross_share_pct, expiryImpact.impact.net_sign_changed);
+
+// strike must be an exact listed strike
+const strikeDependency = await fa.strikeDependency('SPY', { strike: 670 });
+console.log(strikeDependency.dominant_expiry, strikeDependency.dominant_expiry_share_pct);
+```
+
+`data_status` is `partial` in normal operation (the open-interest vintage is unknown),
+`stale` when an input predates the market-session freshness cutoff, and `unavailable`
+when no contract qualifies. `reasons` carries machine codes.
 
 ### greeks
 

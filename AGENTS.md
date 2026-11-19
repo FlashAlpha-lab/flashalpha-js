@@ -65,6 +65,8 @@ the following in a JavaScript or TypeScript project:
 - **Additional exposure cuts** — `exposureSheet`,
   `exposureTermStructure`, `exposureBasket`, `exposureOiDiff`,
   `flowDealerPremium`, and `flowStockBars`.
+- **Expiry impact (SPY, QQQ)** - `expiryImpact(symbol, { expiry?, limit? })` compares the current SPY or QQQ gamma distribution with the same captured inputs after excluding one expiry. Requires Growth or higher.
+- **Strike dependency (SPY, QQQ)** - `strikeDependency(symbol, { strike })` attributes the gamma at one exact observed SPY or QQQ strike to its expiries: does the level depend on a single maturity? Requires Growth or higher.
 
 If the user says "GEX", "gamma flip", "call wall", "put wall",
 "0DTE pin", "max pain", "VRP", "harvest score", "dealer flow", "dealer

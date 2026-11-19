@@ -3,6 +3,8 @@
  * Uses a mock fetch implementation — no live API calls.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { FlashAlpha } from '../src/client';
 import {
   AuthenticationError,
@@ -1189,5 +1191,144 @@ describe('sellWindow()', () => {
   it('throws TierRestrictedError below the required plan', async () => {
     const { fetchFn } = makeMockFetch(403, { error: 'tier_restricted', message: 'Requires Basic plan.' });
     await expect(makeClient(fetchFn).sellWindow('SPY')).rejects.toBeInstanceOf(TierRestrictedError);
+  });
+});
+
+// ── expiry impact and strike dependency ──────────────────────────────────────
+// Fixtures are real production responses captured 2026-11-19 (lists trimmed).
+
+function fixture(name: string): unknown {
+  return JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8'));
+}
+
+describe('expiryImpact()', () => {
+  it('calls GET /v1/exposure/expiry-impact/{symbol} with no query when options are omitted', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, fixture('expiry_impact_live.json'));
+    await makeClient(fetchFn).expiryImpact('SPY');
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/exposure/expiry-impact/SPY');
+    expect(url.search).toBe('');
+  });
+
+  it('sends expiry and limit when given', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, fixture('expiry_impact_live.json'));
+    await makeClient(fetchFn).expiryImpact('QQQ', { expiry: '2026-11-20', limit: 3 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/exposure/expiry-impact/QQQ');
+    expect(url.search).toBe('?expiry=2026-11-20&limit=3');
+  });
+
+  it('omits expiry when only limit is given', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, fixture('expiry_impact_live.json'));
+    await makeClient(fetchFn).expiryImpact('SPY', { limit: 5 });
+    expect(getCalledUrl(calls).search).toBe('?limit=5');
+  });
+
+  it('binds the typed response at every level', async () => {
+    const { fetchFn } = makeMockFetch(200, fixture('expiry_impact_live.json'));
+    const r = await makeClient(fetchFn).expiryImpact('SPY');
+    expect(r.symbol).toBe('SPY');
+    expect(r.underlying_price).toBe(735.885);
+    expect(r.selected_expiry).toBe('2026-11-19');
+    expect(r.available_expiries).toEqual(['2026-11-19', '2026-11-20', '2026-11-23']);
+    expect(r.current.contract_count).toBe(9891);
+    expect(r.current.status).toBeUndefined();
+    expect(r.excluding_expiry.status).toBe('available');
+    expect(r.impact.removed_gross_share_pct).toBeCloseTo(4.374061987278384, 12);
+    expect(r.impact.net_sign_changed).toBe(false);
+    expect(r.impact.largest_gross_reductions[0].strike).toBe(740);
+    expect(r.impact.strongest_remaining_concentrations[1].remaining_net_gex_usd).toBeCloseTo(-984227977.1005697, 4);
+    expect(r.strikes[0].excluded_gross_gex_usd).toBe(0);
+    expect(r.facts[0].code).toBe('expiry_gross_share');
+    expect(r.facts[0].supporting_values['expiry']).toBe('2026-11-19');
+    expect(r.facts[1].supporting_values['remaining_contract_count']).toBe(9738);
+    expect(r.reasons[0].contract_count).toBe(600);
+    expect(r.reasons[2].contract_count).toBeNull();
+    expect(r.oi_as_of).toBeNull();
+    expect(r.observed_max_strike).toBe(1480);
+    expect(r.analysis_type).toBe('expiry_removal_sensitivity');
+    expect(r.endpoint_version).toBe('2026.09.30');
+    expect(r.data_as_of?.node).toBe('fa4');
+  });
+
+  it('throws TierRestrictedError below Growth', async () => {
+    const { fetchFn } = makeMockFetch(403, {
+      error: 'tier_restricted',
+      message: 'Requires Growth plan.',
+      current_plan: 'basic',
+      required_plan: 'growth',
+    });
+    const err = await makeClient(fetchFn).expiryImpact('SPY').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TierRestrictedError);
+    expect((err as TierRestrictedError).requiredPlan).toBe('growth');
+  });
+
+  it('surfaces 422 unsupported_symbol as FlashAlphaError', async () => {
+    const { fetchFn } = makeMockFetch(422, fixture('error_unsupported_symbol.json'));
+    const err = await makeClient(fetchFn).expiryImpact('AAPL').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FlashAlphaError);
+    expect((err as FlashAlphaError).statusCode).toBe(422);
+    expect((err as FlashAlphaError).message).toBe('This operation currently supports standard SPY and QQQ options.');
+    expect(((err as FlashAlphaError).response as Record<string, unknown>)['error']).toBe('unsupported_symbol');
+  });
+});
+
+describe('strikeDependency()', () => {
+  it('sends a fractional strike exactly', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, fixture('strike_dependency_live.json'));
+    await makeClient(fetchFn).strikeDependency('SPY', { strike: 672.5 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/exposure/strike-dependency/SPY');
+    expect(url.search).toBe('?strike=672.5');
+  });
+
+  it('sends a whole strike', async () => {
+    const { fetchFn, calls } = makeMockFetch(200, fixture('strike_dependency_live.json'));
+    await makeClient(fetchFn).strikeDependency('QQQ', { strike: 670 });
+    const url = getCalledUrl(calls);
+    expect(url.pathname).toBe('/v1/exposure/strike-dependency/QQQ');
+    expect(url.search).toBe('?strike=670');
+  });
+
+  it('binds the typed response at every level', async () => {
+    const { fetchFn } = makeMockFetch(200, fixture('strike_dependency_live.json'));
+    const r = await makeClient(fetchFn).strikeDependency('SPY', { strike: 670 });
+    expect(r.strike).toBe(670);
+    expect(r.distance_from_spot_pct).toBeCloseTo(-8.953165236416016, 12);
+    expect(r.contract_count).toBe(48);
+    expect(r.analysis_type).toBe('strike_attribution');
+    expect(r.by_expiry[0].expiry).toBe('2026-11-19');
+    expect(r.by_expiry[0].valuation_cutoff_at).toBe('2026-11-19T21:00:00Z');
+    expect(r.by_expiry[0].settlement_at).toBeNull();
+    expect(r.by_expiry[0].calendar_days_to_expiry).toBe(0);
+    expect(r.by_expiry[0].call_gex_usd).toBe(0);
+    expect(r.by_expiry[1].share_of_strike_gross_pct).toBeCloseTo(4.203198667972151, 12);
+    expect(r.by_expiry[1].status).toBeUndefined();
+    expect(r.dominant_expiry).toBe('2026-12-18');
+    expect(r.dominant_expiry_share_pct).toBeCloseTo(22.973602773735948, 12);
+    expect(r.endpoint_version).toBe('2026.09.30');
+    expect(r.data_as_of?.node).toBe('fa4');
+  });
+
+  it('throws TierRestrictedError below Growth', async () => {
+    const { fetchFn } = makeMockFetch(403, { error: 'tier_restricted', message: 'Requires Growth plan.' });
+    await expect(makeClient(fetchFn).strikeDependency('SPY', { strike: 670 })).rejects.toBeInstanceOf(
+      TierRestrictedError,
+    );
+  });
+
+  it('throws NotFoundError for a strike with no eligible contracts', async () => {
+    const { fetchFn } = makeMockFetch(404, fixture('error_strike_not_found.json'));
+    const err = await makeClient(fetchFn).strikeDependency('SPY', { strike: 671.3 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotFoundError);
+    expect(((err as NotFoundError).response as Record<string, unknown>)['requested_strike']).toBe(671.3);
+  });
+
+  it('surfaces 422 unsupported_symbol as FlashAlphaError', async () => {
+    const { fetchFn } = makeMockFetch(422, fixture('error_unsupported_symbol.json'));
+    const err = await makeClient(fetchFn).strikeDependency('AAPL', { strike: 200 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FlashAlphaError);
+    expect((err as FlashAlphaError).statusCode).toBe(422);
+    expect(((err as FlashAlphaError).response as Record<string, unknown>)['error']).toBe('unsupported_symbol');
   });
 });
