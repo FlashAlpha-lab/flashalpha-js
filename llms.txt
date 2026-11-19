@@ -93,6 +93,8 @@ console.log(summary.regime, summary.gamma_flip, summary.gamma_flip_status);
 - `maxPain(symbol)` — max pain strike, pain curve, dealer alignment,
   pin probability (Growth+).
 - `gex(symbol)` / `dex` / `vex` / `chex` — exposure curves by strike.
+- `expiryImpact(symbol, { expiry?, limit? })` - compares the current SPY or QQQ gamma distribution with the same captured inputs after excluding one expiry (Growth+).
+- `strikeDependency(symbol, { strike })` - attributes the gamma at one exact observed SPY or QQQ strike to its expiries: does the level depend on a single maturity? (Growth+).
 - `greeks(opts)` — full BSM theoretical price + first/second/third-order
   greeks for any (spot, strike, dte, sigma) point (public).
 - `iv(opts)` — implied vol from a market price.

@@ -262,6 +262,17 @@ export type {
   OiDiffChange,
   OiDiffResponse,
   OiDiffOptions,
+  // ── Expiry impact and strike dependency (SPY, QQQ) ──
+  GammaContextReason,
+  GammaTotals,
+  GammaStrikeImpact,
+  GammaRemovalImpact,
+  GammaContextFact,
+  GammaExpiryRow,
+  ExpiryImpactOptions,
+  ExpiryImpactResponse,
+  StrikeDependencyOptions,
+  StrikeDependencyResponse,
   // ── Liquidity ──
   LiquidityExpiry,
   LiquidityResponse,

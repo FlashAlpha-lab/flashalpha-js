@@ -78,6 +78,10 @@ import type {
   ExpectedMoveOptions,
   ExposureSheetResponse,
   ExposureSheetOptions,
+  ExpiryImpactOptions,
+  ExpiryImpactResponse,
+  StrikeDependencyOptions,
+  StrikeDependencyResponse,
   ExposureTermStructureResponse,
   ExposureBasketResponse,
   ExposureBasketOptions,
@@ -1006,6 +1010,41 @@ export class FlashAlpha {
       `/v1/exposure/oi-diff/${_seg(symbol)}`,
       Object.keys(params).length ? params : undefined,
     ) as Promise<OiDiffResponse>;
+  }
+
+  /**
+   * Compares the current SPY or QQQ gamma distribution with the same captured inputs
+   * after excluding one expiry. Spot, Greeks and open interest are held fixed, so this
+   * measures how much of today's concentration depends on one maturity. It is not a
+   * forecast of post-expiry prices, dealer hedging or the next session's chain.
+   *
+   * `expiry` (yyyy-MM-dd, optional) defaults to the nearest active eligible expiry and
+   * must be one of `available_expiries`. `limit` (1-20, default 5) sets the rows in
+   * `impact.largest_gross_reductions` and `impact.strongest_remaining_concentrations`;
+   * totals and `strikes` always use the full eligible chain. Requires Growth or higher.
+   * Other symbols return 422 `unsupported_symbol`.
+   */
+  async expiryImpact(symbol: string, options: ExpiryImpactOptions = {}): Promise<ExpiryImpactResponse> {
+    const params: Record<string, string | number | undefined> = {};
+    if (options.expiry) params['expiry'] = options.expiry;
+    if (options.limit !== undefined) params['limit'] = options.limit;
+    return this._get(
+      `/v1/exposure/expiry-impact/${_seg(symbol)}`,
+      Object.keys(params).length ? params : undefined,
+    ) as Promise<ExpiryImpactResponse>;
+  }
+
+  /**
+   * Attributes the gamma at one exact observed SPY or QQQ strike to its expiries: does
+   * the level depend on a single maturity? It reports concentration at that strike, not
+   * a support/resistance probability. `strike` is required and must be an exact listed
+   * strike; the request is never snapped to a nearby strike (404 `strike_not_found`).
+   * Requires Growth or higher.
+   */
+  async strikeDependency(symbol: string, options: StrikeDependencyOptions): Promise<StrikeDependencyResponse> {
+    return this._get(`/v1/exposure/strike-dependency/${_seg(symbol)}`, {
+      strike: options.strike,
+    }) as Promise<StrikeDependencyResponse>;
   }
 
   // ── Volatility (additional) ───────────────────────────────────────────────
