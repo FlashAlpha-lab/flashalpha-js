@@ -707,7 +707,7 @@ export interface MaxPainResponse {
 // VVIX, SKEW, SPX, MOVE, fear-and-greed) in one call.
 //
 // Dual-mode auth: with a valid API key the response is LIVE; without one,
-// the API silently falls back to a previous-day cached snapshot — useful
+// the API silently falls back to the previous trading session's snapshot — useful
 // for unauthenticated marketing/playground usage but always inspect
 // `as_of` and `market_open` to be sure you have what you expect.
 
@@ -842,7 +842,7 @@ export interface StockSummaryTopStrike {
  * and an OI-weighted DTE.
  *
  * `null` on the response when there's no usable options data
- * (illiquid name, weekend cache miss, etc.).
+ * (illiquid name, no data loaded yet, etc.).
  */
 export interface StockSummaryExposure {
   /** Net dealer gamma exposure ($ per 1% spot move). */
@@ -971,7 +971,7 @@ export interface StockSummaryMacro {
  *     basis, fear-and-greed)
  *
  * Dual-mode auth: with a valid `X-Api-Key` the response is LIVE; without
- * one, the API silently falls back to a previous-day cached snapshot
+ * one, the API silently falls back to the previous trading session's snapshot
  * (useful for marketing/playground usage but always inspect `as_of` and
  * `market_open` to confirm you have what you expect).
  *
@@ -2967,7 +2967,7 @@ export interface FlowOptionLeaderRow {
 /**
  * Cross-symbol option-flow leaderboard from
  * `GET /v1/flow/options/leaderboard`. Top `n` net-dollar buyers and
- * sellers over the window. Cached ~30s. Requires the Alpha plan.
+ * sellers over the window. Refreshes about every 30s. Requires the Alpha plan.
  */
 export interface FlowOptionLeaderboardResponse {
   /** When the snapshot was generated (ISO-8601 UTC). */
@@ -3024,7 +3024,7 @@ export interface FlowOutlierRow {
 
 /**
  * Cross-symbol option-flow outliers from
- * `GET /v1/flow/options/outliers`. Cached ~30s. Requires the Alpha plan.
+ * `GET /v1/flow/options/outliers`. Refreshes about every 30s. Requires the Alpha plan.
  */
 export interface FlowOptionOutliersResponse {
   /** When the snapshot was generated (ISO-8601 UTC). */
@@ -3070,7 +3070,7 @@ export interface FlowStockLeaderRow {
 
 /**
  * Cross-symbol stock-flow leaderboard from
- * `GET /v1/flow/stocks/leaderboard`. Cached ~30s. Requires the Alpha plan.
+ * `GET /v1/flow/stocks/leaderboard`. Refreshes about every 30s. Requires the Alpha plan.
  */
 export interface FlowStockLeaderboardResponse {
   /** When the snapshot was generated (ISO-8601 UTC). */
@@ -3091,7 +3091,7 @@ export interface FlowStockLeaderboardResponse {
 
 /**
  * Cross-symbol stock-flow outliers from
- * `GET /v1/flow/stocks/outliers`. Cached ~30s. Requires the Alpha plan.
+ * `GET /v1/flow/stocks/outliers`. Refreshes about every 30s. Requires the Alpha plan.
  */
 export interface FlowStockOutliersResponse {
   /** When the snapshot was generated (ISO-8601 UTC). */
